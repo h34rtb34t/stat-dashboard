@@ -10,8 +10,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
-    <header class="app-header">
-        <h1>My WebSite Statistics</h1>
+    <!-- ... (header, controls, summary, charts - unchanged) ... -->
+     <header class="app-header">
+        <h1>Portfolio Statistics</h1>
         <button id="themeToggleBtn" title="Toggle Theme">🌙</button>
     </header>
 
@@ -55,22 +56,66 @@
          </div>
     </div>
 
-    <h2 class="table-heading">Recent Raw Events (Latest 500)</h2>
-    <div class="table-wrapper">
-        <table id="rawEventsTable">
-            <thead>
-                <tr>
-                    <th>Timestamp</th>
-                    <th>Type</th>
-                    <th>Page</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Data rows will be inserted here -->
-            </tbody>
-        </table>
-    </div>
+    <!-- START: Modified Section for Raw Events -->
+    <details class="raw-events-details">
+        <summary class="table-heading">
+            Recent Raw Events (Latest 500)
+        </summary>
+
+        <!-- START: Filter Controls -->
+        <div class="raw-events-filters">
+             <div class="filter-group">
+                 <label for="filterEventType">Filter by Type:</label>
+                 <select id="filterEventType">
+                     <option value="">All Types</option>
+                     <!-- Options will be populated by JS -->
+                 </select>
+             </div>
+             <div class="filter-group">
+                 <label for="filterKeyword">Search:</label>
+                 <input type="search" id="filterKeyword" placeholder="General keyword...">
+             </div>
+             <!-- START: New Filters -->
+             <div class="filter-group">
+                 <label for="filterLinkType">Link Type:</label>
+                 <select id="filterLinkType">
+                     <option value="">All Link Types</option>
+                     <!-- Options will be populated by JS -->
+                 </select>
+             </div>
+              <div class="filter-group">
+                 <label for="filterModalType">Modal Type/ID:</label>
+                 <select id="filterModalType">
+                     <option value="">All Modal Types/IDs</option>
+                     <!-- Options will be populated by JS -->
+                 </select>
+             </div>
+             <div class="filter-group">
+                 <label for="filterProjectId">Project ID/Context:</label>
+                 <input type="search" id="filterProjectId" placeholder="Project keyword...">
+             </div>
+             <!-- END: New Filters -->
+        </div>
+        <!-- END: Filter Controls -->
+
+        <div class="table-wrapper">
+            <table id="rawEventsTable">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Type</th>
+                        <th>Page</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data rows will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </details>
+    <!-- END: Modified Section for Raw Events -->
+
 
     <!-- Scroll to Top Button -->
     <button id="scrollToTopBtn" title="Go to top">↑</button>
