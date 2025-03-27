@@ -228,3 +228,57 @@ function renderChart(canvasId, type, data, options = {}) {
     const defaultOptions = { responsive: true, maintainAspectRatio: false };
     chartInstances[canvasId] = new Chart(ctx, { type, data, options: { ...defaultOptions, ...options } });
 }
+
+
+
+
+
+
+// Existing code remains the same, add these functions at the end of the file
+
+// Theme Toggle Functionality
+function initThemeToggle() {
+    const themeToggle = document.createElement('button');
+    themeToggle.id = 'themeToggle';
+    themeToggle.textContent = '🌓 Toggle Theme';
+    document.body.appendChild(themeToggle);
+
+    // Check for saved theme preference or default to light
+    const savedTheme = localStorage.getItem('portfolio-dashboard-theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-theme');
+    }
+
+    themeToggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark-theme');
+        
+        // Save preference
+        const isDarkMode = document.body.classList.contains('dark-theme');
+        localStorage.setItem('portfolio-dashboard-theme', isDarkMode ? 'dark' : 'light');
+
+        // Recreate charts with updated theme colors
+        if (window.renderCharts && typeof window.lastFetchedEvents !== 'undefined') {
+            destroyCharts();
+            renderCharts(window.lastFetchedEvents);
+        }
+    });
+}
+
+// Modify existing fetchData function to store last fetched events
+async function fetchData() {
+    // ... existing fetchData code ...
+    
+    try {
+        // ... existing try block code ...
+        
+        // Store events globally for potential theme-based re-rendering
+        window.lastFetchedEvents = rawEvents;
+        
+        // ... rest of existing code ...
+    } catch (error) {
+        // ... existing catch block ...
+    }
+}
+
+// Call theme toggle initialization when script loads
+document.addEventListener('DOMContentLoaded', initThemeToggle);
