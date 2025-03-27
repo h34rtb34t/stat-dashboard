@@ -1,3 +1,5 @@
+/* --- START OF FILE dashboard.css --- */
+
 /* --- Base Variables (Light Theme) --- */
 :root {
     --bg-color: #f0f2f5;
@@ -248,30 +250,129 @@ a:hover {
 }
 
 
-/* --- Table --- */
-.table-heading { /* Style the heading above the table */
-    text-align: center;
-    margin-bottom: 15px;
-    /* Inherits h2 styles */
+/* --- Raw Events Section (Details/Summary & Table) --- */
+
+/* Style the <details> container itself */
+.raw-events-details {
+    margin-top: 40px;
+    margin-bottom: 30px; /* Space below the whole section */
+    /* Optional: Give it a card-like appearance */
+    /* background-color: var(--card-bg); */
+    /* border: 1px solid var(--border-color); */
+    /* border-radius: 8px; */
+    /* transition: background-color 0.3s ease, border-color 0.3s ease; */
 }
 
-.table-wrapper { /* Added wrapper for potential horizontal scroll */
+/* Style the <summary> which acts as the clickable header */
+.raw-events-details summary.table-heading {
+    /* Inherit desired styles from h2.table-heading */
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--header-text);
+    text-align: center;
+    margin-bottom: 15px; /* Initial margin */
+    transition: color 0.3s ease, margin-bottom 0.3s ease;
+
+    /* Interactivity */
+    cursor: pointer;
+    list-style: none; /* Hide default triangle marker if desired */
+    display: block; /* Ensure it takes full width */
+    padding: 5px 0; /* Add some vertical padding for click area */
+}
+/* Remove WebKit default marker */
+.raw-events-details summary.table-heading::-webkit-details-marker {
+    display: none;
+}
+/* Style the marker for other browsers (if not hidden via list-style) */
+.raw-events-details summary.table-heading::marker {
+    /* Example: color: var(--primary-color); */
+}
+
+/* Adjust margin when details are open */
+.raw-events-details[open] summary.table-heading {
+    margin-bottom: 0; /* Reduce margin when open as filters/table appear below */
+}
+
+/* --- Raw Events Filter Controls --- */
+.raw-events-filters {
+    display: flex;
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    gap: 15px 20px; /* Row gap, Column gap */
+    padding: 20px 15px; /* Padding inside the filter area */
+    margin-bottom: 15px; /* Space below filters, above table */
+    border-bottom: 1px solid var(--border-color); /* Separator */
+    transition: border-color 0.3s ease;
+    background-color: var(--card-bg); /* Give filters same bg as table wrapper */
+    border-top-left-radius: 8px; /* Match wrapper if details isn't styled as card */
+    border-top-right-radius: 8px;
+    box-shadow: var(--card-shadow); /* Match table */
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-group label {
+    font-size: 0.9rem;
+    color: var(--secondary-text);
+    margin-bottom: 0; /* Override any general label margins */
+    transition: color 0.3s ease;
+    white-space: nowrap; /* Prevent labels from wrapping */
+}
+
+.filter-group select,
+.filter-group input[type="search"] {
+    padding: 6px 10px;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    font-size: 0.9rem;
+    min-width: 140px; /* Base width for filters */
+    transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+}
+/* Give search inputs a bit more room */
+.filter-group input[type="search"]#filterKeyword { min-width: 180px; }
+.filter-group input[type="search"]#filterProjectId { min-width: 160px; }
+
+
+.filter-group select:focus,
+.filter-group input[type="search"]:focus {
+     outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+/* Clear default search cancel button appearance */
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none; /* Remove default cross */
+  appearance: none;
+}
+
+/* --- Table --- */
+.table-wrapper { /* Wrapper for horizontal scroll and styling */
     overflow-x: auto; /* Enable horizontal scroll on small screens */
     background: var(--card-bg);
-    border-radius: 8px;
+    border-bottom-left-radius: 8px; /* Rounded bottom corners */
+    border-bottom-right-radius: 8px;
     box-shadow: var(--card-shadow);
-    transition: background-color 0.3s ease, box-shadow 0.3s ease; /* Updated */
-    margin-bottom: 30px; /* Add some space below the table */
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    /* margin-bottom removed here, handled by .raw-events-details */
 }
+/* If filters are NOT inside details, add margin back here */
+/* .raw-events-details:not([open]) + .table-wrapper { margin-top: 15px; } */
+
 
 table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
-    border: 1px solid var(--border-color); /* Add outer border */
-    border-radius: 8px; /* Match card radius */
+    border: none; /* Remove outer border, handled by wrapper */
+    /* border-radius: 8px; */ /* Handled by wrapper */
     overflow: hidden; /* Clip inner elements to border radius */
-    transition: border-color 0.3s ease; /* Added */
+    /* transition: border-color 0.3s ease; */ /* Transition on wrapper instead */
 }
 th, td {
     border: none; /* Remove individual cell borders */
@@ -280,18 +381,24 @@ th, td {
     text-align: left;
     vertical-align: top;
     word-wrap: break-word;
-    transition: border-color 0.3s ease; /* Added */
+    transition: border-color 0.3s ease, background-color 0.3s ease; /* Added bg transition for rows */
 }
 th {
     background-color: var(--table-header-bg);
     font-weight: 600;
     color: var(--header-text); /* Use header text color for contrast */
     border-bottom-width: 2px; /* Thicker bottom border for header */
+    position: sticky; /* Make header sticky within the wrapper */
+    top: 0; /* Stick to the top of the scrollable area */
+    z-index: 1; /* Ensure header stays above rows */
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; /* Updated */
 }
 tbody tr:nth-child(odd) {
     background-color: var(--table-row-odd-bg);
-    transition: background-color 0.3s ease;
+    /* transition is already on td */
+}
+tbody tr:hover { /* Add hover effect */
+    background-color: color-mix(in srgb, var(--border-color) 40%, transparent);
 }
 tbody tr:last-child td {
     border-bottom: none; /* Remove border from last row */
