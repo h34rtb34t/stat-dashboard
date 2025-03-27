@@ -1,1 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Stats Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <!-- Include Chart.js and date adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <h1>Portfolio Statistics</h1>
+        <button id="themeToggleBtn" title="Toggle Theme">🌙</button>
+    </header>
 
+    <div class="controls">
+        <label for="secretToken">Auth Token:</label>
+        <input type="password" id="secretToken" placeholder="Enter your secret token">
+        <button id="fetchDataBtn">Fetch Data</button>
+        <p id="status"></p>
+    </div>
+
+    <div class="summary-boxes">
+         <div class="summary-box" id="totalViewsBox"><h2>Total Views</h2><span class="value">--</span></div>
+         <div class="summary-box" id="uniqueDaysBox"><h2>Unique Days (Approx)</h2><span class="value">--</span></div>
+         <!-- Add more summary boxes as needed -->
+    </div>
+
+    <div class="charts-container">
+        <div class="chart-box">
+            <h2>Page Views Over Time</h2>
+            <canvas id="pageViewsChart"></canvas>
+        </div>
+        <div class="chart-box">
+             <h2>Top Project Interactions</h2>
+             <canvas id="projectInteractionsChart"></canvas>
+        </div>
+         <div class="chart-box">
+             <h2>Link Click Types</h2>
+             <canvas id="linkTypesChart"></canvas>
+         </div>
+         <div class="chart-box">
+             <h2>Modal Opens</h2>
+             <canvas id="modalOpensChart"></canvas>
+         </div>
+         <div class="chart-box">
+             <h2>Event Types Distribution</h2>
+             <canvas id="eventTypesChart"></canvas> <!-- New Chart -->
+         </div>
+         <div class="chart-box">
+             <h2>Screen Width Distribution</h2>
+             <canvas id="screenWidthChart"></canvas> <!-- New Chart -->
+         </div>
+    </div>
+
+    <h2 class="table-heading">Recent Raw Events (Latest 500)</h2>
+    <div class="table-wrapper">
+        <table id="rawEventsTable">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Type</th>
+                    <th>Page</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data rows will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Scroll to Top Button -->
+    <button id="scrollToTopBtn" title="Go to top">↑</button>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>
