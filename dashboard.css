@@ -265,33 +265,43 @@ a:hover {
 
 /* Style the <summary> which acts as the clickable header */
 .raw-events-details summary.table-heading {
-    /* Inherit desired styles from h2.table-heading */
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--header-text);
+    /* --- Updated Styles --- */
+    font-size: 1.4rem;        /* Bigger font size */
+    font-weight: 700;         /* Bolder font weight (700 is typically bold) */
+    color: #198754;           /* Green color (Bootstrap 5 success green - good contrast) */
+    /* --- End Updated Styles --- */
+
     text-align: center;
     margin-bottom: 15px; /* Initial margin */
-    transition: color 0.3s ease, margin-bottom 0.3s ease;
+    /* Added font-size and font-weight to transition */
+    transition: color 0.3s ease, margin-bottom 0.3s ease, font-size 0.3s ease, font-weight 0.3s ease;
 
     /* Interactivity */
     cursor: pointer;
     list-style: none; /* Hide default triangle marker if desired */
     display: block; /* Ensure it takes full width */
-    padding: 5px 0; /* Add some vertical padding for click area */
+    padding: 8px 0; /* Slightly increased padding to accommodate larger font */
 }
-/* Remove WebKit default marker */
+
+/* Optional: Slightly adjust color for dark theme if needed */
+body.dark-theme .raw-events-details summary.table-heading {
+    color: #20c997; /* A slightly lighter green for dark backgrounds */
+}
+
+/* Remove WebKit default marker (unchanged) */
 .raw-events-details summary.table-heading::-webkit-details-marker {
     display: none;
 }
-/* Style the marker for other browsers (if not hidden via list-style) */
+/* Style the marker for other browsers (if not hidden via list-style) (unchanged) */
 .raw-events-details summary.table-heading::marker {
     /* Example: color: var(--primary-color); */
 }
 
-/* Adjust margin when details are open */
+/* Adjust margin when details are open (unchanged) */
 .raw-events-details[open] summary.table-heading {
     margin-bottom: 0; /* Reduce margin when open as filters/table appear below */
 }
+
 
 /* --- Raw Events Filter Controls --- */
 .raw-events-filters {
