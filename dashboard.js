@@ -1,20 +1,21 @@
+// --- START OF FILE dashboard.js ---
+
 // --- Configuration ---
 // PASTE THE URL FOR YOUR *RETRIEVAL* WORKER (patient-mode-9cfb...) HERE:
 const RETRIEVAL_WORKER_URL = 'https://patient-mode-9cfb.azelbane87.workers.dev'; // <-- IMPORTANT: Set your URL here
 
-// Use CSS variables for chart colors where possible, fallback to array
-// Define them here to easily reference them
+// ... (CHART_COLORS_CSS, CHART_COLORS_FALLBACK - unchanged) ...
 const CHART_COLORS_CSS = [
     'var(--chart-color-1)', 'var(--chart-color-2)', 'var(--chart-color-3)',
     'var(--chart-color-4)', 'var(--chart-color-5)', 'var(--chart-color-6)',
     'var(--chart-color-7)', 'var(--chart-color-8)', 'var(--chart-color-9)'
 ];
-// Fallback if CSS vars aren't supported or needed directly
 const CHART_COLORS_FALLBACK = [
     'rgba(54, 162, 235, 0.7)', 'rgba(255, 99, 132, 0.7)', 'rgba(75, 192, 192, 0.7)',
     'rgba(255, 205, 86, 0.7)', 'rgba(153, 102, 255, 0.7)', 'rgba(255, 159, 64, 0.7)',
     'rgba(201, 203, 207, 0.7)', 'rgba(100, 100, 255, 0.7)', 'rgba(255, 100, 100, 0.7)'
 ];
+
 
 // --- DOM Elements ---
 const fetchDataBtn = document.getElementById('fetchDataBtn');
@@ -22,14 +23,25 @@ const secretTokenInput = document.getElementById('secretToken');
 const statusEl = document.getElementById('status');
 const rawEventsTbody = document.querySelector('#rawEventsTable tbody');
 const totalViewsEl = document.querySelector('#totalViewsBox .value');
-const uniqueDaysEl = document.querySelector('#uniqueDaysBox .value'); // Corrected ID
-const themeToggleBtn = document.getElementById('themeToggleBtn'); // Theme toggle button
-const scrollToTopBtn = document.getElementById("scrollToTopBtn"); // Scroll button
+const uniqueDaysEl = document.querySelector('#uniqueDaysBox .value');
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const scrollToTopBtn = document.getElementById("scrollToTopBtn");
+// Filter Elements
+const filterEventTypeSelect = document.getElementById('filterEventType');
+const filterKeywordInput = document.getElementById('filterKeyword');
+const filterLinkTypeSelect = document.getElementById('filterLinkType'); // NEW
+const filterModalTypeSelect = document.getElementById('filterModalType'); // NEW
+const filterProjectIdInput = document.getElementById('filterProjectId'); // NEW
+
 
 // --- Chart Instances ---
 let chartInstances = {}; // Store chart instances by canvas ID
 
+// --- State ---
+let currentRawEvents = []; // Store the last fetched events
+
 // --- Theme Handling ---
+// ... (applyTheme, toggleTheme functions - unchanged) ...
 function applyTheme(theme) {
     const isDark = theme === 'dark';
     document.body.classList.toggle('dark-theme', isDark);
@@ -64,6 +76,7 @@ function toggleTheme() {
 }
 
 // --- Scroll to Top Logic ---
+// ... (handleScroll, goToTop functions - unchanged) ...
 function handleScroll() {
     // Show button when scrolled down 100px (adjust as needed)
     const scrollThreshold = 100;
@@ -98,12 +111,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Click listener for the "Scroll to Top" button
     scrollToTopBtn.addEventListener('click', goToTop);
 
+    // --- Listeners for table filters ---
+    filterEventTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
+    filterKeywordInput.addEventListener('input', applyFiltersAndDisplayEvents); // 'input' for real-time filtering
+    filterLinkTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents); // NEW
+    filterModalTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents); // NEW
+    filterProjectIdInput.addEventListener('input', applyFiltersAndDisplayEvents); // NEW
+
+
     // Initial check for scroll position in case the page loads scrolled down
     handleScroll();
 });
 
 
-// --- Core Function (Unchanged Core Logic) ---
+// --- Core Fetch Function (Modified) ---
 async function fetchData() {
     const secretToken = secretTokenInput.value.trim();
     if (!secretToken) {
@@ -118,9 +139,11 @@ async function fetchData() {
 
     statusEl.textContent = 'Fetching data...';
     fetchDataBtn.disabled = true; // Prevent multiple clicks
-    rawEventsTbody.innerHTML = ''; // Clear table
+    rawEventsTbody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>'; // Clear table with loading message
     resetSummary(); // Clear summary boxes
     destroyCharts(); // Clear previous charts
+    currentRawEvents = []; // Clear previous data
+    resetFilters(); // Reset filter inputs
 
     try {
         const response = await fetch(RETRIEVAL_WORKER_URL, {
@@ -140,18 +163,23 @@ async function fetchData() {
 
         statusEl.textContent = `Fetched ${rawEvents.length} recent events. Processing...`;
 
+        // Store fetched data
+        currentRawEvents = rawEvents;
+
         // Process & Display
-        // NB: Display raw events *after* rendering charts if chart functions need original data fields
-        renderCharts(rawEvents); // Render all charts (now includes new ones)
-        displayRawEvents(rawEvents); // Raw data display function (modified slightly for screenWidth usage)
-        calculateAndDisplaySummary(rawEvents); // Unchanged
+        populateEventTypeFilter(currentRawEvents); // Populate main type filter
+        populateLinkTypeFilter(currentRawEvents); // NEW: Populate link type filter
+        populateModalTypeFilter(currentRawEvents); // NEW: Populate modal type filter
+        renderCharts(currentRawEvents); // Render all charts
+        applyFiltersAndDisplayEvents(); // Initial display of (potentially filtered) events
+        calculateAndDisplaySummary(currentRawEvents); // Calculate summary based on *all* fetched events
 
-
-        statusEl.textContent = `Displayed ${rawEvents.length} recent events.`;
+        statusEl.textContent = `Displayed initial view of ${currentRawEvents.length} fetched events.`;
 
     } catch (error) {
         console.error('Error fetching or processing data:', error);
         statusEl.textContent = `Error: ${error.message}`;
+        rawEventsTbody.innerHTML = `<tr><td colspan="4" style="color: red;">Error: ${error.message}</td></tr>`; // Show error in table
     } finally {
          fetchDataBtn.disabled = false; // Re-enable button
     }
@@ -170,28 +198,164 @@ function destroyCharts() {
     chartInstances = {};
 }
 
-// Modified slightly: Keep screenWidth temporarily for aggregation if present
-function displayRawEvents(events) {
-     // Sort events by receivedAt descending before displaying
-     const sortedEvents = [...events].sort((a, b) => new Date(b.receivedAt || 0) - new Date(a.receivedAt || 0));
+// --- Filter Functions (Modified and New) ---
+function resetFilters() {
+    filterEventTypeSelect.innerHTML = '<option value="">All Types</option>'; // Reset dropdown
+    filterKeywordInput.value = ''; // Clear search box
+    filterLinkTypeSelect.innerHTML = '<option value="">All Link Types</option>'; // NEW
+    filterModalTypeSelect.innerHTML = '<option value="">All Modal Types/IDs</option>'; // NEW
+    filterProjectIdInput.value = ''; // NEW
+}
 
+function populateEventTypeFilter(events) {
+    const types = new Set(events.map(e => e.type || 'Unknown').filter(t => t));
+    // Keep existing "All Types" option
+    filterEventTypeSelect.innerHTML = '<option value="">All Types</option>';
+    types.forEach(type => {
+         const option = document.createElement('option');
+         option.value = type;
+         option.textContent = type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+         filterEventTypeSelect.appendChild(option);
+    });
+}
+
+// NEW: Populate Link Type Filter
+function populateLinkTypeFilter(events) {
+    const linkTypes = new Set(
+        events.filter(e => e.linkType) // Only consider events with a linkType
+              .map(e => e.linkType)
+    );
+    // Reset specific dropdown (keep "All")
+    filterLinkTypeSelect.innerHTML = '<option value="">All Link Types</option>';
+    linkTypes.forEach(type => {
+        if (type) { // Ensure not empty
+             const option = document.createElement('option');
+             option.value = type;
+             // Basic prettifying
+             option.textContent = type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+             filterLinkTypeSelect.appendChild(option);
+        }
+    });
+}
+
+// NEW: Populate Modal Type/ID Filter
+function populateModalTypeFilter(events) {
+     const modalTypes = new Set(
+         events.filter(e => e.type === 'modal_open' && (e.modalType || e.modalId)) // Only modals with type/id
+               .flatMap(e => [e.modalType, e.modalId]) // Get both possible values
+               .filter(Boolean) // Remove null/undefined/empty strings
+     );
+     // Reset specific dropdown (keep "All")
+     filterModalTypeSelect.innerHTML = '<option value="">All Modal Types/IDs</option>';
+     modalTypes.forEach(type => {
+         const option = document.createElement('option');
+         option.value = type;
+         // Basic prettifying
+         option.textContent = type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+         filterModalTypeSelect.appendChild(option);
+     });
+}
+
+
+// MODIFIED: Apply all filters
+function applyFiltersAndDisplayEvents() {
+    const selectedEventType = filterEventTypeSelect.value;
+    const keyword = filterKeywordInput.value.trim().toLowerCase();
+    const selectedLinkType = filterLinkTypeSelect.value; // NEW
+    const selectedModalType = filterModalTypeSelect.value; // NEW
+    const projectIdKeyword = filterProjectIdInput.value.trim().toLowerCase(); // NEW
+
+    // 1. Sort the original data
+    const sortedEvents = [...currentRawEvents].sort((a, b) => new Date(b.receivedAt || 0) - new Date(a.receivedAt || 0));
+
+    // 2. Apply filters sequentially
+    let filteredEvents = sortedEvents;
+
+    // Filter by main Event Type
+    if (selectedEventType) {
+        filteredEvents = filteredEvents.filter(event => (event.type || 'Unknown') === selectedEventType);
+    }
+
+    // Filter by Specific Link Type (adds constraint)
+    if (selectedLinkType) {
+        filteredEvents = filteredEvents.filter(event => event.linkType === selectedLinkType);
+    }
+
+    // Filter by Specific Modal Type/ID (adds constraint)
+    if (selectedModalType) {
+        // Checks if the selected value matches either modalType or modalId
+        filteredEvents = filteredEvents.filter(event => event.modalType === selectedModalType || event.modalId === selectedModalType);
+    }
+
+    // Filter by Project ID / Context Keyword (adds constraint)
+     if (projectIdKeyword) {
+        filteredEvents = filteredEvents.filter(event =>
+            (event.projectId && String(event.projectId).toLowerCase().includes(projectIdKeyword)) ||
+            (event.context && String(event.context).toLowerCase().includes(projectIdKeyword))
+        );
+     }
+
+    // Filter by General Keyword (applies to remaining events and fields)
+    if (keyword) {
+        filteredEvents = filteredEvents.filter(event => {
+            const timestampStr = event.receivedAt ? new Date(event.receivedAt).toLocaleString().toLowerCase() : '';
+            const typeStr = (event.type || '').toLowerCase();
+            const pageStr = (event.page || '').toLowerCase();
+            // Basic search in details: convert object to string, excluding already filtered fields
+            let detailsStr = '';
+            try {
+                const details = { ...event };
+                 // Remove fields handled by specific filters or common fields
+                 ['receivedAt', 'timestamp', 'type', 'page', 'screenWidth', 'screenHeight',
+                  'linkType', 'modalType', 'modalId', 'projectId', 'context'].forEach(k => delete details[k]);
+                 if (Object.keys(details).length > 0) {
+                    detailsStr = JSON.stringify(details).toLowerCase();
+                 }
+            } catch (e) { /* ignore stringify errors */ }
+
+            // Check against timestamp, type, page, and remaining details string
+            return timestampStr.includes(keyword) ||
+                   typeStr.includes(keyword) ||
+                   pageStr.includes(keyword) ||
+                   detailsStr.includes(keyword);
+        });
+    }
+
+    // 3. Render the filtered results
+    renderTableBody(filteredEvents);
+
+    // Optional: Update status message with counts
+    // const detailsElement = document.querySelector('.raw-events-details');
+    // if (detailsElement && detailsElement.open) { // Only update if details are open
+    //     statusEl.textContent = `Displaying ${filteredEvents.length} of ${currentRawEvents.length} events matching filters.`;
+    // }
+}
+
+
+// Renamed and simplified displayRawEvents (Unchanged from previous step)
+function renderTableBody(events) {
      // Clear existing rows first
      rawEventsTbody.innerHTML = '';
 
-     sortedEvents.forEach(event => {
+     if (events.length === 0) {
+         rawEventsTbody.innerHTML = '<tr><td colspan="4">No events match the current filters.</td></tr>';
+         return;
+     }
+
+     events.forEach(event => {
         const row = rawEventsTbody.insertRow();
         row.insertCell().textContent = event.receivedAt ? new Date(event.receivedAt).toLocaleString() : 'N/A';
         row.insertCell().textContent = event.type || 'N/A';
         row.insertCell().textContent = event.page || 'N/A';
         const detailsCell = row.insertCell();
         const details = { ...event };
-        // Remove common/redundant fields from details view AFTER potential use in charts
-        ['receivedAt', 'timestamp', 'type', 'page', 'screenWidth', 'screenHeight'].forEach(k => delete details[k]); // Added screenHeight too
+        // Remove common/redundant fields from details view AFTER potential use in charts/filtering
+        ['receivedAt', 'timestamp', 'type', 'page', 'screenWidth', 'screenHeight'].forEach(k => delete details[k]);
         detailsCell.innerHTML = `<pre>${Object.keys(details).length > 0 ? JSON.stringify(details, null, 2) : '--'}</pre>`;
      });
 }
 
-// Unchanged
+// --- calculateAndDisplaySummary (Unchanged) ---
 function calculateAndDisplaySummary(events) {
     const pageViews = events.filter(e => e.type === 'pageview');
     totalViewsEl.textContent = pageViews.length;
@@ -205,7 +369,7 @@ function calculateAndDisplaySummary(events) {
      uniqueDaysEl.textContent = uniqueDays.size;
 }
 
-// Generic function to aggregate data (Unchanged)
+// --- aggregateData (Unchanged) ---
 function aggregateData(events, filterCondition, keyExtractor, labelExtractor = null, limit = 10) {
     const aggregation = events
         .filter(filterCondition) // Use flexible filter condition
@@ -229,7 +393,8 @@ function aggregateData(events, filterCondition, keyExtractor, labelExtractor = n
 }
 
 
-// Modified to include new charts
+// --- renderCharts (Unchanged) ---
+// ... (Full renderCharts function code - unchanged) ...
 function renderCharts(events) {
 
     // Define chart colors - use the fallback array for direct assignment
@@ -380,7 +545,8 @@ function renderCharts(events) {
      }
 }
 
-// Generic Chart Rendering Function (Modified for theme defaults)
+// --- renderChart (Unchanged) ---
+// ... (Full renderChart function code - unchanged) ...
 function renderChart(canvasId, type, data, options = {}) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) { console.error(`Canvas element with ID "${canvasId}" not found.`); return; }
