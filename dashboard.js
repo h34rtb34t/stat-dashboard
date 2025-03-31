@@ -252,7 +252,7 @@ async function fetchData() {
         statusEl.textContent = 'Please enter the Auth Token.';
         return;
     }
-    if (!RETRIEVAL_WORKER_URL || RETRIEVAL_WORKER_URL === 'YOUR_COPIED_RETRIEVAL_WORKER_URL' || RETRIEVAL_WORKER_URL.includes('patient-mode')) { // Safety check
+    if (!RETRIEVAL_WORKER_URL || RETRIEVAL_WORKER_URL === 'https://patient-mode-9cfb.azelbane87.workers.dev/' || RETRIEVAL_WORKER_URL.includes('patient-mode')) { // Safety check
          // Make sure the placeholder URL is replaced!
          if (RETRIEVAL_WORKER_URL.includes('patient-mode')) {
              statusEl.textContent = 'ERROR: Please replace the placeholder RETRIEVAL_WORKER_URL in dashboard.js with your actual worker URL.';
