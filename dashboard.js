@@ -1,346 +1,537 @@
-// --- START OF FILE dashboard.js ---
+// --- START OF FILE script.js (Integrated Tracker) ---
 
-// --- Configuration ---
-const RETRIEVAL_WORKER_URL = 'https://patient-mode-9cfb.azelbane87.workers.dev/'; // <-- YOUR URL IS HERE
+// ----------------------------------------------------------------------- //
+// --- NEW Portfolio Analytics Tracker (Based on tracker.js example) ---   //
+// ----------------------------------------------------------------------- //
+(function() {
+    // --- Configuration ---
+    // IMPORTANT: Replace with the URL of your DEPLOYED logging-worker
+    const LOGGING_WORKER_URL = 'https://YOUR_LOGGING_WORKER_SUBDOMAIN.YOUR_WORKERS_DOMAIN.workers.dev/log'; // <<<<<------ SET THIS ******
+    // Optional: Add a simple secret if you want basic verification on the logging worker
+    // const TRACKING_SECRET = 'your_optional_simple_secret';
 
-const CHART_COLORS_CSS = [
-    'var(--chart-color-1)', 'var(--chart-color-2)', 'var(--chart-color-3)',
-    'var(--chart-color-4)', 'var(--chart-color-5)', 'var(--chart-color-6)',
-    'var(--chart-color-7)', 'var(--chart-color-8)', 'var(--chart-color-9)'
-];
-const CHART_COLORS_FALLBACK = [
-    'rgba(54, 162, 235, 0.7)', 'rgba(255, 99, 132, 0.7)', 'rgba(75, 192, 192, 0.7)',
-    'rgba(255, 205, 86, 0.7)', 'rgba(153, 102, 255, 0.7)', 'rgba(255, 159, 64, 0.7)',
-    'rgba(201, 203, 207, 0.7)', 'rgba(100, 100, 255, 0.7)', 'rgba(255, 100, 100, 0.7)'
-];
+    // Debounce function (optional - keep if you think you might need it later)
+    function debounce(func, wait) { /* ... (keep debounce function code) ... */ }
 
+    // --- Core Event Sending Function ---
+    function sendEvent(eventType, eventDetails = {}) {
+        if (!LOGGING_WORKER_URL || LOGGING_WORKER_URL.includes('YOUR_LOGGING_WORKER_SUBDOMAIN')) { // Added check for placeholder
+            console.warn("Logging worker URL not configured correctly in script.js. Tracking disabled.", LOGGING_WORKER_URL);
+            return;
+        }
 
-// --- DOM Elements ---
-const fetchDataBtn = document.getElementById('fetchDataBtn');
-const secretTokenInput = document.getElementById('secretToken');
-const statusEl = document.getElementById('status');
-const rawEventsTbody = document.querySelector('#rawEventsTable tbody');
-const totalViewsEl = document.querySelector('#totalViewsBox .value');
-const uniqueDaysEl = document.querySelector('#uniqueDaysBox .value');
-const themeToggleBtn = document.getElementById('themeToggleBtn');
-const scrollToTopBtn = document.getElementById("scrollToTopBtn");
-// Filter Elements
-const filterEventTypeSelect = document.getElementById('filterEventType');
-const filterKeywordInput = document.getElementById('filterKeyword');
-const filterLinkTypeSelect = document.getElementById('filterLinkType');
-const filterModalTypeSelect = document.getElementById('filterModalType');
-const filterProjectIdInput = document.getElementById('filterProjectId');
+        // Add projectId/context from details if missing at top level (for consistency in KV)
+        const detailsProjectId = eventDetails.projectId || eventDetails.context || eventDetails.trackId || null;
 
+        const payload = {
+            type: eventType,
+            timestamp: new Date().toISOString(), // Client-side timestamp
+            page: window.location.href, // Use full URL
+            screenWidth: window.innerWidth, // Use innerWidth (more common for layout)
+            screenHeight: window.innerHeight,
+            referrer: document.referrer, // Where the user came from
+            projectId: detailsProjectId, // Hoist projectId/context if available in details
+            details: eventDetails // Keep the full details object
+        };
 
-// --- Chart Instances ---
-let chartInstances = {}; // Store chart instances by canvas ID
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
 
-// --- Map Instance and Layer ---
-let mapInstance = null;
-let markerLayerGroup = null;
-let lightTileLayer = null;
-let darkTileLayer = null;
+        try {
+            // Optional: Add secret header if using one
+            // if (TRACKING_SECRET) {
+            //    navigator.sendBeacon(LOGGING_WORKER_URL, blob, { 'X-Tracking-Secret': TRACKING_SECRET });
+            // } else {
+               navigator.sendBeacon(LOGGING_WORKER_URL, blob); // Use sendBeacon for reliability
+            // }
+            // console.log('Beacon sent:', payload.type, payload.projectId || '', payload.details.targetElement || '', payload.details.href || ''); // Debugging
+        } catch (error) {
+            console.error('Error sending tracking beacon:', error);
+            // Fallback or alternative logging method if needed
+            fetch(LOGGING_WORKER_URL, { method: 'POST', body: JSON.stringify(payload), headers: {'Content-Type': 'application/json'}, keepalive: true })
+             .catch(fetchErr => console.error('Tracking fetch fallback error:', fetchErr));
+        }
+    }
 
-// --- State ---
-let currentRawEvents = []; // Store the last fetched events
+    // --- Event Listeners ---
 
-// --- Theme Handling ---
-function applyTheme(theme) {
-    const isDark = theme === 'dark';
-    document.body.classList.toggle('dark-theme', isDark);
-    themeToggleBtn.textContent = isDark ? '☀️' : '🌙';
-    themeToggleBtn.title = isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme';
+    // 1. Page View Tracking
+    // Send immediately on script load (approximates page view)
+    // No need for DOMContentLoaded here, as it runs when the script file loads
+    sendEvent('pageview');
 
-    // Set Chart.js global defaults based on theme
-    Chart.defaults.color = isDark ? '#e0e0e0' : '#555';
-    Chart.defaults.borderColor = isDark ? '#444' : '#e1e4e8';
+    // 2. Click Tracking (using event delegation)
+    // This will capture ALL clicks on the body and analyze the target
+    document.body.addEventListener('click', function(event) {
+        const element = event.target;
 
-    // Update existing charts to reflect theme changes
-    Object.values(chartInstances).forEach(chart => {
-        if (chart) {
-            try { // Add try-catch for chart updates
-                chart.options.scales.x.grid.color = Chart.defaults.borderColor;
-                chart.options.scales.x.ticks.color = Chart.defaults.color;
-                chart.options.scales.y.grid.color = Chart.defaults.borderColor;
-                chart.options.scales.y.ticks.color = Chart.defaults.color;
-                if (chart.options.plugins.legend) {
-                     chart.options.plugins.legend.labels.color = Chart.defaults.color;
+        // --- Element Identification ---
+        // Find the nearest relevant interactive ancestor
+        const link = element.closest('a');
+        const button = element.closest('button');
+        // Add specific identifiable elements if needed (e.g., project cards)
+        const projectCard = element.closest('.project-card');
+        const trackedElement = element.closest('[data-track-id]'); // Explicit tracking points
+        const publicationItemLink = element.closest('.publication-item a'); // Specific handling for these links
+        const projectImage = element.closest('.project-image[data-project-id]'); // Specific image clicks
+        const projectTitle = element.closest('.project-info h3[data-project-id]'); // Specific title clicks
+        const themeToggle = element.closest('#theme-toggle-btn, #theme-toggle-btn-mobile'); // Theme toggles
+        const scrollToTop = element.closest('#scrollToTopBtn'); // Scroll to top
+        const hamburger = element.closest('#hamburger-menu'); // Hamburger toggle
+        const mobileNavLink = element.closest('.mobile-nav-panel a.mobile-nav-link'); // Links inside mobile nav
+        const modalCloseBtn = element.closest('[data-close-modal]'); // Modal close buttons
+
+        // --- Determine Context (e.g., Project ID) ---
+        let contextProjectId = null;
+        if (projectCard) {
+            const cardTitle = projectCard.querySelector('h3[data-project-id]');
+            if (cardTitle) contextProjectId = cardTitle.getAttribute('data-project-id');
+        } else if (trackedElement) {
+            contextProjectId = trackedElement.getAttribute('data-project-id') || trackedElement.getAttribute('data-context') || contextProjectId;
+        } else if (projectImage) {
+            contextProjectId = projectImage.getAttribute('data-project-id');
+        } else if (projectTitle) {
+             contextProjectId = projectTitle.getAttribute('data-project-id');
+        }
+        // Note: contextProjectId might still be null here if the click wasn't within a project context
+
+        // --- Event Type and Details Logic ---
+        let eventType = 'generic_click'; // Default if nothing specific matches
+        let details = {
+            targetElement: element.tagName,
+            targetId: element.id || null,
+            targetClasses: element.className || null,
+            // Add contextProjectId if found
+            ...(contextProjectId && { projectId: contextProjectId })
+        };
+        let shouldTrack = true; // Flag to decide if this generic click tracker should log the event
+
+        // --- Handle Specific Click Cases FIRST (to avoid double-tracking) ---
+        // These cases are likely handled by MORE SPECIFIC listeners elsewhere in the code
+        // OR we want to assign a VERY specific event type here.
+
+        if (projectImage) {
+            // Handled by the specific project image click listener below if it's opening slideshow
+            // We could track a basic image click here if needed, but let's rely on the modal/slideshow tracking
+            shouldTrack = false; // Don't track generically, rely on dedicated handler
+        } else if (projectTitle) {
+            // Handled by the specific project title click listener below
+            shouldTrack = false; // Don't track generically, rely on dedicated handler
+        } else if (publicationItemLink) {
+            // Handled by the specific publication link listener below
+             shouldTrack = false; // Don't track generically, rely on dedicated handler
+        } else if (themeToggle || scrollToTop || hamburger || mobileNavLink || modalCloseBtn) {
+             // These have dedicated tracking calls within their specific handlers below
+             shouldTrack = false;
+        } else if (link) {
+            // This is a link click NOT handled by the specific cases above
+            details.href = link.getAttribute('href'); // Use getAttribute to get the raw value
+            details.linkText = link.textContent?.trim().substring(0, 100); // Limit text length
+
+            if (details.href) {
+                if (details.href.startsWith('#')) {
+                    eventType = 'anchor_click';
+                    details.linkType = 'anchor';
+                    // Note: If it's the publications link, it will be handled by specific listeners below
+                    if (link.id === 'publications-link' || link.id === 'publications-link-mobile') {
+                        shouldTrack = false; // Prevent double tracking
+                    }
+                } else {
+                    eventType = 'link_click'; // External or internal page link
+                    if (link.hostname === window.location.hostname || details.href.startsWith('/')) {
+                         details.linkType = 'internal';
+                    } else {
+                         details.linkType = 'external';
+                    }
+                    // Add more specific link types based on your old logic if needed
+                    if (link.closest('.project-links')) details.linkTypeDetail = 'project_link';
+                    if (link.closest('.social-links') || link.closest('.contact-links a[href*="linkedin"]') || link.closest('.contact-links a[href*="github"]')) details.linkTypeDetail = 'social_contact_link';
+                    // etc...
                 }
-                chart.update();
-            } catch (chartUpdateError) {
-                console.error("Error updating chart theme:", chartUpdateError, chart.canvas.id);
+            } else {
+                 eventType = 'link_click'; // Link without href
+                 details.linkType = 'nohref';
             }
-        }
-    });
+            // If contextProjectId was found earlier, it's already in details
+             if (!details.projectId && trackedElement) { // Add trackId if link is inside a tracked element
+                 details.trackId = trackedElement.getAttribute('data-track-id');
+             }
 
-    // --- Switch Map Tile Layers ---
-    if (mapInstance && lightTileLayer && darkTileLayer) { // Ensure map and layers are initialized
-        console.log(`Applying theme: ${theme}. Switching map tiles.`);
-        try { // Add try-catch for map layer switching
-            if (isDark) {
-                if (mapInstance.hasLayer(lightTileLayer)) { mapInstance.removeLayer(lightTileLayer); console.log("Removed light tile layer."); }
-                if (!mapInstance.hasLayer(darkTileLayer)) { mapInstance.addLayer(darkTileLayer); console.log("Added dark tile layer."); }
-            } else { // Is Light
-                if (mapInstance.hasLayer(darkTileLayer)) { mapInstance.removeLayer(darkTileLayer); console.log("Removed dark tile layer."); }
-                if (!mapInstance.hasLayer(lightTileLayer)) { mapInstance.addLayer(lightTileLayer); console.log("Added light tile layer."); }
+        } else if (button) {
+            // A button was clicked that isn't handled by specific cases
+            eventType = 'button_click';
+            details.buttonText = button.textContent?.trim().substring(0, 100);
+            details.buttonId = button.id || null;
+            details.buttonClasses = button.className || null;
+             // If contextProjectId was found earlier, it's already in details
+             if (!details.projectId && trackedElement) { // Add trackId if button is inside a tracked element
+                 details.trackId = trackedElement.getAttribute('data-track-id');
+             }
+
+        } else if (trackedElement) {
+            // Clicked directly on or inside an element with data-track-id, but wasn't a link/button/handled case
+            eventType = trackedElement.getAttribute('data-track-event-type') || 'tracked_element_click'; // Allow custom event type
+            details.trackId = trackedElement.getAttribute('data-track-id');
+            // projectId/context should already be in details if found via context logic above
+        }
+        // --- Add more specific 'else if' cases here if needed ---
+
+
+        // --- Send the Event (if not handled specifically elsewhere) ---
+        if (shouldTrack) {
+            sendEvent(eventType, details);
+        }
+
+    }, true); // Use CAPTURE phase (true) to catch clicks early if needed, but false (bubbling) is usually fine.
+
+    // --- Public API ---
+    // Expose functions to be called from the rest of your script
+    window.portfolioTracker = {
+        trackEvent: sendEvent, // General purpose tracking
+        // Specific helpers matching the old tracker.js example
+        trackModalOpen: (modalId, context = {}) => {
+            // Ensure context is an object, extract relevant fields
+            let detail = context.detail || context.pdfPath || (context.projectId ? `Project: ${context.projectId}` : '');
+            let projectId = context.projectId || null;
+            if (!projectId && typeof context.context === 'string' && context.context.length > 0) {
+                 projectId = context.context; // Use context.context if projectId missing
             }
-        } catch (mapLayerError) { console.error("Error switching map tile layers:", mapLayerError); }
-    } else { console.log("Map or tile layers not ready for theme switch yet."); }
-}
 
-function toggleTheme() {
-    const currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('dashboardTheme', newTheme);
-    applyTheme(newTheme);
-}
+            sendEvent('modal_open', { modalId: modalId, detail: String(detail).substring(0,150), projectId: projectId });
+        },
+        trackImageView: (imageSrc, context = {}) => {
+             // Ensure context is an object
+             let projectId = context.projectId || null;
+              if (!projectId && typeof context.context === 'string' && context.context.length > 0) {
+                  projectId = context.context; // Use context.context if projectId missing
+              }
 
-// --- Scroll to Top Logic ---
-function handleScroll() {
-    const scrollThreshold = 100;
-    if (document.body.scrollTop > scrollThreshold || document.documentElement.scrollTop > scrollThreshold) { scrollToTopBtn.classList.add('show'); }
-    else { scrollToTopBtn.classList.remove('show'); }
-}
-function goToTop() { window.scrollTo({ top: 0 }); }
-
-// --- Map Initialization ---
-function initializeMap() {
-    if (mapInstance) return;
-    try {
-        if (typeof L === 'undefined') { console.error("Leaflet library (L) not found."); statusEl.textContent = "Error: Map library not loaded."; return; }
-        const mapContainer = document.getElementById('locationMap');
-        if (!mapContainer) { console.error("Map container element '#locationMap' not found."); return; }
-        mapInstance = L.map('locationMap').setView([20, 0], 2);
-        lightTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors' });
-        darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© <a href="https://osm.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>', subdomains: 'abcd', maxZoom: 19 });
-        const initialThemeIsDark = document.body.classList.contains('dark-theme');
-        if (initialThemeIsDark) { darkTileLayer.addTo(mapInstance); } else { lightTileLayer.addTo(mapInstance); }
-        markerLayerGroup = L.layerGroup().addTo(mapInstance);
-        console.log("Map initialized successfully.");
-    } catch (error) { console.error("Error initializing map:", error); statusEl.textContent = "Error initializing map."; mapInstance = null; lightTileLayer = null; darkTileLayer = null; markerLayerGroup = null; }
-}
-
-// --- Map Rendering ---
-function renderLocationMap(events) {
-    if (!mapInstance || !markerLayerGroup) { console.warn("Map not initialized/ready for rendering."); return; }
-    markerLayerGroup.clearLayers();
-    let locationsAdded = 0;
-    events.forEach(event => {
-        if (event.location && event.location.latitude != null && event.location.longitude != null && !isNaN(parseFloat(event.location.latitude)) && !isNaN(parseFloat(event.location.longitude))) {
-            const lat = parseFloat(event.location.latitude); const lon = parseFloat(event.location.longitude);
-            if (lat === 0 && lon === 0) { console.log("Skipping 0,0 coords for event:", event.type); return; }
-            const popupContent = `<b>Type:</b> ${event.type || 'N/A'}<br><b>Time:</b> ${event.receivedAt ? new Date(event.receivedAt).toLocaleString() : 'N/A'}<br><b>Location:</b> ${event.location.city || '?'} / ${event.location.region || '?'} / ${event.location.country || '?'}<br><b>Page:</b> ${event.page || 'N/A'}<br><b>IP Info:</b> ${event.location.ip || '?'} (${event.location.asOrganization || '?'})`;
-            try { L.marker([lat, lon]).bindPopup(popupContent).addTo(markerLayerGroup); locationsAdded++; }
-            catch (markerError) { console.error(`Error adding marker for event: Lat=${lat}, Lon=${lon}`, markerError, event); }
+             sendEvent('image_view', {
+                 imageSrc: String(imageSrc).substring(0, 200), // Limit src length
+                 slide: context.slide || null,
+                 totalSlides: context.totalSlides || null,
+                 projectId: projectId
+                });
         }
-    });
-    console.log(`Added ${locationsAdded} markers to the map.`);
-}
+        // Add other specific tracking functions if needed (e.g., trackFormSubmit)
+    };
 
-// Apply saved theme and set up listeners on load
-document.addEventListener('DOMContentLoaded', () => {
-    initializeMap(); // Initialize map FIRST
-    const savedTheme = localStorage.getItem('dashboardTheme') || 'light';
-    applyTheme(savedTheme); // Apply initial theme AFTER map structure is ready
+    console.log("Portfolio tracker initialized.");
 
-    // Event Listeners
-    fetchDataBtn.addEventListener('click', fetchData); // Ensure listener is attached
-    secretTokenInput.addEventListener('keypress', function (e) { if (e.key === 'Enter') fetchData(); });
-    themeToggleBtn.addEventListener('click', toggleTheme);
-    window.addEventListener('scroll', handleScroll);
-    scrollToTopBtn.addEventListener('click', goToTop);
-    filterEventTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-    filterKeywordInput.addEventListener('input', applyFiltersAndDisplayEvents);
-    filterLinkTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-    filterModalTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-    filterProjectIdInput.addEventListener('input', applyFiltersAndDisplayEvents);
-    handleScroll();
-    console.log("DOM Content Loaded, event listeners attached."); // Log listener setup
-});
+})(); // End of Tracker IIFE
 
-// --- Core Fetch Function (ADDED DETAILED ENTRY/EXIT LOGGING) ---
-async function fetchData() {
-    console.log("fetchData function CALLED!"); // <-- Log entry
+// ----------------------------------------------------------------------- //
+// --- MAIN SCRIPT CONTENT STARTS HERE ---                                 //
+// ----------------------------------------------------------------------- //
 
-    const secretToken = secretTokenInput.value.trim();
-    if (!secretToken) {
-        statusEl.textContent = 'Please enter the Auth Token.';
-        console.log("fetchData: Exiting - No secret token."); // <-- Log exit reason
-        return;
+document.addEventListener('DOMContentLoaded', function() {
+
+    // --- START: Theme Toggle Logic ---
+    // ... (Keep your existing theme toggle code) ...
+    // --- MODIFY handleToggleClick to use new tracker ---
+    const handleToggleClick = () => {
+        const currentThemeIsLight = body.classList.contains('light-theme');
+        const newTheme = currentThemeIsLight ? 'dark' : 'light';
+        applyTheme(newTheme);
+        // --- Use new tracker ---
+        if (window.portfolioTracker) {
+             window.portfolioTracker.trackEvent('theme_change', { theme: newTheme });
+        }
+        // --- End Use new tracker ---
+    };
+    // ... (Rest of theme toggle code: applyTheme, updateButtonState, listeners etc.) ...
+    // --- END: Theme Toggle Logic ---
+
+
+    // --- Elements ---
+    // ... (Keep your existing element selections) ...
+
+    // --- Slideshow Data ---
+    // ... (Keep your existing slideshowData) ...
+
+    // --- Publications Data ---
+    // ... (Keep your existing publicationsData) ...
+
+    // --- Utility ---
+    // ... (Keep your existing isElementInViewport) ...
+
+    // --- Intersection Observer ---
+    // ... (Keep your existing observer setup) ...
+
+    // --- Modal Functions ---
+    // --- MODIFY openModal to use new tracker ---
+    function openModal(modalElement, contextData = {}) {
+         if (!modalElement) return;
+
+         // --- Track Modal Open (using new tracker helper) ---
+         if (window.portfolioTracker) {
+            // Prepare context for the tracker function
+            let trackerContext = {};
+            let modalId = modalElement.id || 'unknown_modal';
+
+             // Extract project ID or other relevant context
+             if (contextData.projectId) trackerContext.projectId = contextData.projectId;
+             else if (contextData.pdfPath) trackerContext.detail = contextData.pdfPath; // Use pdfPath as detail if no projectId
+
+            // Refine detail based on modal type AFTER basic context is set
+             if (modalId === 'imageModal' && currentProjectData) {
+                 trackerContext.detail = currentProjectData.prefix;
+                 trackerContext.projectId = trackerContext.projectId || currentProjectData.prefix.replace(/[.\/]/g, ''); // Add projectId if missing
+             } else if (modalId === 'pdfModal') {
+                 trackerContext.detail = currentPdfOriginalPath || pdfViewer.src; // Prefer original path
+                  trackerContext.projectId = trackerContext.projectId || (currentPdfOriginalPath ? currentPdfOriginalPath.split('/').pop() : ''); // Add filename as context if missing
+             } else if (modalId === 'descriptionModal') {
+                  trackerContext.detail = modalDescTitle ? modalDescTitle.textContent : '';
+                 // projectId should already be in trackerContext if passed via contextData
+             } else if (modalId === 'publicationsModal'){
+                 trackerContext.detail = 'Publication List';
+             }
+
+             window.portfolioTracker.trackModalOpen(modalId, trackerContext);
+         }
+         // --- End Tracking ---
+
+         // ... (Rest of your existing openModal logic: add class, focus, etc.) ...
     }
-    console.log("fetchData: Secret token found.");
+    // --- Keep closeModal as is (no tracking needed on close typically) ---
+    function closeModal(modalElement) { /* ... keep existing ... */ }
 
-    // Simplified URL check - just make sure it's not empty or obviously a placeholder remnant
-     if (!RETRIEVAL_WORKER_URL || RETRIEVAL_WORKER_URL.includes('REPLACE') || RETRIEVAL_WORKER_URL.length < 20) { // Basic sanity check
-         statusEl.textContent = 'ERROR: RETRIEVAL_WORKER_URL seems invalid or not configured in dashboard.js.';
-         console.error('ERROR: Invalid RETRIEVAL_WORKER_URL detected:', RETRIEVAL_WORKER_URL);
-         console.log("fetchData: Exiting - Invalid RETRIEVAL_WORKER_URL."); // <-- Log exit reason
-         return;
-     }
-     console.log("fetchData: RETRIEVAL_WORKER_URL seems valid:", RETRIEVAL_WORKER_URL);
+    // --- Slideshow Functions ---
+    // --- MODIFY showSlide to use new tracker ---
+    function showSlide(slideNumber) {
+         if (!currentProjectData || !slideImage || !slideCounter || !prevBtn || !nextBtn) return;
+         // ... (Keep existing slide update logic: currentSlide, imageUrl, alt, counter, buttons, rotation) ...
+         const imageUrl = `${currentProjectData.prefix}${currentSlide}.${currentProjectData.extension}`;
+         slideImage.src = imageUrl;
+         slideImage.alt = `Project image ${currentSlide} of ${currentProjectData.totalSlides}`;
+          if (currentProjectData.totalSlides === 1) { /* hide controls */ } else { /* show controls */ }
+          const rotation = currentProjectData.rotations?.[currentSlide] ?? 0;
+          slideImage.style.transform = `rotate(${rotation}deg)`;
 
 
-    statusEl.textContent = 'Fetching data...';
-    console.log("fetchData: Disabling button.");
-    fetchDataBtn.disabled = true; // Prevent multiple clicks
+         // --- Track Image View (using new tracker helper) ---
+         if (imageModal.classList.contains('show') && window.portfolioTracker) {
+             window.portfolioTracker.trackImageView(imageUrl, {
+                 // Pass context clearly
+                 projectId: currentProjectData.prefix.replace(/[.\/]/g, ''),
+                 slide: currentSlide,
+                 totalSlides: currentProjectData.totalSlides
+             });
+         }
+         // --- End Tracking ---
+    }
+    function nextSlide() { /* ... keep existing ... */ }
+    function prevSlide() { /* ... keep existing ... */ }
 
-    console.log("fetchData: Clearing UI elements (table, summary, charts, map).");
-    rawEventsTbody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
-    resetSummary();
-    destroyCharts(); // Destroys Chart.js instances
 
-    if (markerLayerGroup) { markerLayerGroup.clearLayers(); console.log("fetchData: Cleared map markers."); }
-    else { console.log("fetchData: Map layer group not ready for clearing (fetch)."); initializeMap(); }
+    // --- Event Listeners ---
+    // ... (Keep close button and overlay listeners) ...
 
-    currentRawEvents = [];
-    resetFilters();
-    console.log("fetchData: UI cleared, preparing to fetch.");
+    // *** Project Image Click Handler (for Slideshow ONLY) ***
+    // --- MODIFY to use new tracker ---
+    document.querySelectorAll('.project-image[data-project-id]').forEach(element => {
+         element.addEventListener('click', function(event) {
+            const projectId = this.getAttribute('data-project-id');
+            if (!projectId || !slideshowData[projectId]) return;
 
-    try {
-        console.log(`fetchData: Attempting fetch from ${RETRIEVAL_WORKER_URL}...`); // <-- Log before fetch
-        const response = await fetch(RETRIEVAL_WORKER_URL, {
-            method: 'GET', headers: { 'Authorization': `Bearer ${secretToken}` }
+             // --- Track Project Click Intent (Image for Slideshow) ---
+             if (window.portfolioTracker) {
+                 window.portfolioTracker.trackEvent('project_click', { // Use a consistent 'project_click' type maybe?
+                    element: 'image',
+                    projectId: projectId,
+                    action: 'open_slideshow'
+                 });
+             }
+             // --- End Tracking ---
+
+            // Open Slideshow Modal (calls openModal, which tracks modal open)
+             if (imageModal) {
+                 currentProjectData = slideshowData[projectId];
+                 showSlide(1); // Shows first slide (tracks image view if modal is shown)
+                 openModal(imageModal, { projectId: projectId }); // Tracks modal open
+            } else { /* console error */ }
+         });
+    });
+    // *** END Project Image Click Handler ***
+
+
+    // *** Project Title Click Handler (for Description Modal / Specific PDFs) ***
+    // --- MODIFY to use new tracker ---
+    document.querySelectorAll('.project-info h3[data-project-id]').forEach(title => {
+        const projectId = title.getAttribute('data-project-id');
+        // ... (Keep element finding logic: projectCard, descriptionDiv, imageElement) ...
+
+        title.addEventListener('click', function(event) {
+            // --- Track Project Click Intent (Title) ---
+             if (window.portfolioTracker) {
+                 window.portfolioTracker.trackEvent('project_click', { // Consistent event type
+                     element: 'title',
+                     projectId: projectId
+                 });
+             }
+            // --- End Tracking ---
+
+            let pdfPath = null;
+            let pdfContext = { projectId: projectId };
+
+            // --- Special Case PDFs (Uncomment and adjust if needed) ---
+            // if (projectId === 'physiball') { pdfPath = ...; }
+            // else if (projectId === 'drake-music-project') { pdfPath = ...; }
+
+            // --- Action: Open PDF Modal ---
+            if (pdfPath) {
+                event.preventDefault();
+                if (!pdfModal || !pdfViewer) { /* console error */ return; }
+                currentPdfOriginalPath = pdfPath;
+
+                // PDF Fetch and Blob logic (keep existing)
+                fetch(pdfPath)
+                    .then(response => { /* check ok */ return response.blob(); })
+                    .then(blob => {
+                        currentPdfBlobUrl = URL.createObjectURL(blob);
+                        pdfViewer.src = currentPdfBlobUrl + "#toolbar=0&navpanes=0";
+                        // openModal tracks the pdf modal open here
+                        openModal(pdfModal, pdfContext); // Pass context
+                    }).catch(err => {
+                        console.error("PDF Blob Error:", err);
+                        pdfViewer.src = pdfPath; // Fallback
+                        openModal(pdfModal, pdfContext);
+                    });
+                return;
+            }
+
+            // --- Default Case: Open Description Modal ---
+            const descriptionDiv = this.closest('.project-card')?.querySelector('.description');
+            const imageElement = this.closest('.project-card')?.querySelector('.project-image img');
+            if (descriptionDiv && imageElement && descriptionModal && modalDescImage && modalDescTitle && modalDescText) {
+                 event.preventDefault();
+                // ... (Keep description modal population logic) ...
+                 modalDescTitle.textContent = this.textContent;
+                 modalDescImage.src = imageElement.src;
+                 modalDescImage.alt = imageElement.alt || this.textContent;
+                 modalDescText.innerHTML = descriptionDiv.innerHTML;
+
+                // Open the description modal (openModal tracks the modal open)
+                openModal(descriptionModal, { projectId: projectId }); // Pass context
+            } else {
+                 console.warn(`Clicked title for '${projectId}', but required elements missing.`);
+            }
         });
-        console.log("fetchData: Fetch call completed. Status:", response.status); // <-- Log after fetch
+    });
+    // *** END Project Title Click Handler ***
 
-        if (response.status === 401) throw new Error('Unauthorized. Check Auth Token.');
-        if (response.status === 403) throw new Error('Forbidden. Check Worker CORS configuration for dashboard URL.');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-        console.log("fetchData: Response OK, attempting to parse JSON...");
-        const rawEvents = await response.json();
-        console.log("fetchData: JSON parsed successfully.");
+    // ... (Keep Slideshow Navigation Buttons listener) ...
+    // ... (Keep Keyboard Navigation listener) ...
 
-        if (!Array.isArray(rawEvents)) { throw new Error('Received invalid data format from worker.'); }
 
-        statusEl.textContent = `Fetched ${rawEvents.length} recent events. Processing...`;
-        console.log(`fetchData: Fetched ${rawEvents.length} events.`);
-        currentRawEvents = rawEvents;
+    // --- Hamburger Menu Logic ---
+    // --- MODIFY to use new tracker ---
+     if (hamburgerMenu && mobileNavPanel) {
+         hamburgerMenu.addEventListener('click', () => {
+             const isActive = hamburgerMenu.classList.toggle('active');
+             mobileNavPanel.classList.toggle('active');
+             document.body.style.overflow = isActive ? 'hidden' : '';
+             // Track menu toggle
+              if (window.portfolioTracker) {
+                 window.portfolioTracker.trackEvent('mobile_menu_toggle', { state: isActive ? 'open' : 'close' });
+              }
+         });
+     }
+     // --- MODIFY Mobile Nav Link Click ---
+     document.querySelectorAll('.mobile-nav-panel a.mobile-nav-link').forEach(link => {
+         link.addEventListener('click', (e) => {
+            const href = link.getAttribute('href');
+             // Close menu logic (keep existing)
+             if(hamburgerMenu && hamburgerMenu.classList.contains('active')) {
+                 hamburgerMenu.classList.remove('active');
+                 if(mobileNavPanel) mobileNavPanel.classList.remove('active');
+                 document.body.style.overflow = '';
+                  // Track menu close via link click
+                 if (window.portfolioTracker) {
+                      window.portfolioTracker.trackEvent('mobile_menu_toggle', { state: 'close', trigger: 'link_click', targetHref: href });
+                 }
+             }
 
-        console.log("fetchData: Populating filters...");
-        populateEventTypeFilter(currentRawEvents);
-        populateLinkTypeFilter(currentRawEvents);
-        populateModalTypeFilter(currentRawEvents);
-        console.log("fetchData: Rendering charts...");
-        renderCharts(currentRawEvents);
-        console.log("fetchData: Applying filters and displaying table...");
-        applyFiltersAndDisplayEvents();
-        console.log("fetchData: Calculating summary...");
-        calculateAndDisplaySummary(currentRawEvents);
-        console.log("fetchData: Rendering map...");
-        renderLocationMap(currentRawEvents);
+             // Handle specific actions
+             if (link.id === 'publications-link-mobile') {
+                  e.preventDefault();
+                  openPublicationsModal(); // This calls openModal, which handles tracking
+             } else if (href && href.startsWith('#')) {
+                 // Anchor link - generic click tracker should have caught this if 'shouldTrack' remained true
+                 // No specific tracking needed here unless you want to override generic 'anchor_click'
+             } else {
+                 // Other mobile links (e.g., external) - generic link tracker should handle these
+             }
+         });
+     });
+    // --- END Hamburger Menu Logic ---
 
-        statusEl.textContent = `Displayed ${currentRawEvents.length} fetched events.`;
-        console.log("fetchData: Processing complete.");
 
-    } catch (error) {
-        console.error('fetchData: Error during fetch or processing:', error); // <-- Log any error caught
-        statusEl.textContent = `Error: ${error.message}`;
-        rawEventsTbody.innerHTML = `<tr><td colspan="4" style="color: red;">Error: ${error.message}</td></tr>`;
-    } finally {
-         console.log("fetchData: Re-enabling button in finally block."); // <-- Log before re-enabling
-         fetchDataBtn.disabled = false; // Re-enable button
-         console.log("fetchData: Function finished.");
+    // --- Publications Modal ---
+    // --- MODIFY Publication Link Click ---
+    function populatePublications() {
+         if (!publicationsGrid) return;
+         publicationsGrid.innerHTML = '';
+         if (publicationsData.length === 0) { /* empty message */ return; }
+         publicationsData.forEach(pub => {
+             // ... (Keep item and link creation) ...
+             const item = document.createElement('div'); item.classList.add('publication-item');
+             const link = document.createElement('a'); link.href = pub.filePath; link.textContent = pub.title; link.rel = 'noopener noreferrer';
+
+             link.addEventListener('click', (e) => {
+                 e.preventDefault();
+                 if (!pdfModal || !pdfViewer) { /* console error */ return; }
+                 const pdfPath = link.getAttribute('href');
+                 currentPdfOriginalPath = pdfPath;
+
+                 // Track click intent for this specific publication link
+                 if (window.portfolioTracker) {
+                     window.portfolioTracker.trackEvent('publication_click', { title: pub.title, path: pdfPath });
+                 }
+
+                 // ... (Keep PDF Fetch and Blob logic) ...
+                 fetch(pdfPath)
+                     .then(response => { /* check ok */ return response.blob(); })
+                     .then(blob => {
+                         currentPdfBlobUrl = URL.createObjectURL(blob);
+                         pdfViewer.src = currentPdfBlobUrl + "#toolbar=0&navpanes=0";
+                         closeModal(publicationsModal); // Close pub list first
+                         // openModal tracks the pdf modal open
+                         setTimeout(() => openModal(pdfModal, { pdfPath: pdfPath }), 50);
+                     }).catch(err => { /* handle error, fallback, openModal */ });
+             });
+             item.appendChild(link);
+             publicationsGrid.appendChild(item);
+         });
     }
-}
+    // openPublicationsModal calls openModal, which tracks the modal open
+    function openPublicationsModal() { /* ... keep existing, calls openModal ... */ }
+    // Desktop Publications Link Listener (keep existing, calls openPublicationsModal)
+    if (publicationsLink) { /* ... keep existing ... */ }
+    // --- END Publications Modal ---
 
 
-// --- Helper Functions ---
-function resetSummary() { totalViewsEl.textContent = '--'; uniqueDaysEl.textContent = '--'; }
-function destroyCharts() { Object.values(chartInstances).forEach(chart => { if (chart) chart.destroy(); }); chartInstances = {}; }
-
-// --- Filter Functions ---
-function resetFilters() { filterEventTypeSelect.innerHTML = '<option value="">All Types</option>'; filterKeywordInput.value = ''; filterLinkTypeSelect.innerHTML = '<option value="">All Link Types</option>'; filterModalTypeSelect.innerHTML = '<option value="">All Modal Types/IDs</option>'; filterProjectIdInput.value = ''; }
-function populateEventTypeFilter(events) { const types = new Set(events.map(e => e.type || 'Unknown').filter(t => t)); filterEventTypeSelect.innerHTML = '<option value="">All Types</option>'; types.forEach(type => { const option = document.createElement('option'); option.value = type; option.textContent = type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); filterEventTypeSelect.appendChild(option); }); }
-function populateLinkTypeFilter(events) { const linkTypes = new Set( events.filter(e => e.linkType).map(e => e.linkType) ); filterLinkTypeSelect.innerHTML = '<option value="">All Link Types</option>'; linkTypes.forEach(type => { if (type) { const option = document.createElement('option'); option.value = type; option.textContent = type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); filterLinkTypeSelect.appendChild(option); } }); }
-function populateModalTypeFilter(events) { const modalTypes = new Set( events.filter(e => e.type === 'modal_open' && (e.modalType || e.modalId)).flatMap(e => [e.modalType, e.modalId]).filter(Boolean) ); filterModalTypeSelect.innerHTML = '<option value="">All Modal Types/IDs</option>'; modalTypes.forEach(type => { const option = document.createElement('option'); option.value = type; option.textContent = type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); filterModalTypeSelect.appendChild(option); }); }
-function applyFiltersAndDisplayEvents() { const selectedEventType = filterEventTypeSelect.value; const keyword = filterKeywordInput.value.trim().toLowerCase(); const selectedLinkType = filterLinkTypeSelect.value; const selectedModalType = filterModalTypeSelect.value; const projectIdKeyword = filterProjectIdInput.value.trim().toLowerCase(); const sortedEvents = [...currentRawEvents].sort((a, b) => new Date(b.receivedAt || 0) - new Date(a.receivedAt || 0)); let filteredEvents = sortedEvents; if (selectedEventType) { filteredEvents = filteredEvents.filter(event => (event.type || 'Unknown') === selectedEventType); } if (selectedLinkType) { filteredEvents = filteredEvents.filter(event => event.linkType === selectedLinkType); } if (selectedModalType) { filteredEvents = filteredEvents.filter(event => event.modalType === selectedModalType || event.modalId === selectedModalType); } if (projectIdKeyword) { filteredEvents = filteredEvents.filter(event => (event.projectId && String(event.projectId).toLowerCase().includes(projectIdKeyword)) || (event.context && String(event.context).toLowerCase().includes(projectIdKeyword)) ); } if (keyword) { filteredEvents = filteredEvents.filter(event => { const timestampStr = event.receivedAt ? new Date(event.receivedAt).toLocaleString().toLowerCase() : ''; const typeStr = (event.type || '').toLowerCase(); const pageStr = (event.page || '').toLowerCase(); let detailsStr = ''; try { const details = { ...event }; ['receivedAt', 'timestamp', 'type', 'page', 'screenWidth', 'screenHeight', 'location', 'linkType', 'modalType', 'modalId', 'projectId', 'context'].forEach(k => delete details[k]); if (Object.keys(details).length > 0) { detailsStr = JSON.stringify(details).toLowerCase(); } } catch (e) { /* ignore */ } return timestampStr.includes(keyword) || typeStr.includes(keyword) || pageStr.includes(keyword) || detailsStr.includes(keyword); }); } renderTableBody(filteredEvents); }
-function renderTableBody(events) { rawEventsTbody.innerHTML = ''; if (events.length === 0) { rawEventsTbody.innerHTML = '<tr><td colspan="4">No events match the current filters.</td></tr>'; return; } events.forEach(event => { const row = rawEventsTbody.insertRow(); row.insertCell().textContent = event.receivedAt ? new Date(event.receivedAt).toLocaleString() : 'N/A'; row.insertCell().textContent = event.type || 'N/A'; row.insertCell().textContent = event.page || 'N/A'; const detailsCell = row.insertCell(); const details = { ...event }; ['receivedAt', 'timestamp', 'type', 'page', 'screenWidth', 'screenHeight', 'location'].forEach(k => delete details[k]); let locationSummary = ''; if (event.location) { locationSummary = `(Loc: ${event.location.city || '?'}, ${event.location.regionCode || '?'} ${event.location.country || '?'})\n`; } detailsCell.innerHTML = `<pre>${locationSummary}${Object.keys(details).length > 0 ? JSON.stringify(details, null, 2) : '--'}</pre>`; }); }
-
-// --- calculateAndDisplaySummary ---
-function calculateAndDisplaySummary(events) { const pageViews = events.filter(e => e.type === 'pageview'); totalViewsEl.textContent = pageViews.length; const uniqueDays = new Set(pageViews.map(e => { try { return new Date(e.receivedAt || e.timestamp).toLocaleDateString(); } catch (err) { return null; } }).filter(d => d !== null)); uniqueDaysEl.textContent = uniqueDays.size; }
-
-// --- aggregateData (Includes previous safety return) ---
-function aggregateData(events, filterCondition, keyExtractor, labelExtractor = null, limit = 10) {
-    console.log(`--- aggregateData called for: ${keyExtractor.toString().substring(0, 80)}...`);
-    let labels = []; let data = [];
-    try {
-        const filteredEvents = events.filter(filterCondition); console.log(`  aggregateData: Filtered events count: ${filteredEvents.length}`);
-        const extractedKeys = filteredEvents.map(keyExtractor); console.log(`  aggregateData: Extracted keys count (raw): ${extractedKeys.length}`);
-        const validKeys = extractedKeys.filter(value => value !== null && value !== undefined && value !== ''); console.log(`  aggregateData: Valid keys count (non-empty): ${validKeys.length}`);
-        const aggregation = validKeys.reduce((acc, value) => { const key = String(value).substring(0, 50); acc[key] = (acc[key] || 0) + 1; return acc; }, {}); console.log(`  aggregateData: Aggregation counts object:`, aggregation);
-        const sortedEntries = Object.entries(aggregation).sort(([, countA], [, countB]) => countB - countA).slice(0, limit); console.log(`  aggregateData: Sorted/Limited entries:`, sortedEntries);
-        labels = sortedEntries.map(([key]) => labelExtractor ? labelExtractor(key) : key);
-        data = sortedEntries.map(([, count]) => count);
-        console.log(`  aggregateData: Final labels/data counts: ${labels.length}/${data.length}`);
-    } catch (error) { console.error(`  !!! Error inside aggregateData !!!`, error); console.error(`  aggregateData error context: filterCondition=${filterCondition.toString()}, keyExtractor=${keyExtractor.toString()}`); return { labels: [], data: [] }; }
-    return { labels, data };
-}
-
-
-// --- renderCharts (Includes previous safety checks) ---
-function renderCharts(events) {
-    console.log("--- Starting renderCharts ---");
-    const colors = CHART_COLORS_FALLBACK;
-    try {
-        // 1. Page Views Over Time
-        console.log("Processing Chart 1: Page Views Over Time");
-        const viewsByDate = events.filter(e => e.type === 'pageview' && e.receivedAt).reduce((acc, event) => { try { const date = new Date(event.receivedAt).toISOString().split('T')[0]; acc[date] = (acc[date] || 0) + 1; } catch(e) {} return acc; }, {});
-        const sortedDates = Object.keys(viewsByDate).sort(); const pageViewData = sortedDates.map(date => viewsByDate[date]);
-        console.log("Page View Data:", { labels: sortedDates.length, data: pageViewData.length });
-        renderChart('pageViewsChart', 'line', { labels: sortedDates, datasets: [{ label: 'Page Views', data: pageViewData, borderColor: colors[0], backgroundColor: colors[0].replace('0.7', '0.2'), tension: 0.1, fill: true }] }, { scales: { x: { type: 'time', time: { unit: 'day', tooltipFormat: 'PP' } }, y: { beginAtZero: true, suggestedMax: Math.max(0, ...pageViewData) + 3 } } });
-        console.log("Finished Chart 1");
-
-        // 2. Project Interactions
-        console.log("Processing Chart 2: Project Interactions"); console.log(" -> Calling aggregateData for Project Interactions...");
-        const projectAggData = aggregateData( events, e => e.type === 'project_click' || ((e.type === 'modal_open' || e.type === 'image_view') && (e.context || e.projectId)), e => e.projectId || e.context || 'Unknown Project', null, 10 );
-        console.log(" <- Returned from aggregateData for Project Interactions:", projectAggData);
-        if (projectAggData && Array.isArray(projectAggData.labels) && Array.isArray(projectAggData.data)) { const { labels: projectLabels, data: projectData } = projectAggData; console.log("Aggregated data for Project Interactions:", { labels: projectLabels, data: projectData }); if (projectLabels.length > 0) { renderChart('projectInteractionsChart', 'bar', { labels: projectLabels, datasets: [{ label: 'Interactions', data: projectData, backgroundColor: colors[1] }] }, { indexAxis: 'y', scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: {} }, plugins: { legend: { display: false } } }); console.log("Finished Chart 2"); } else { handleEmptyChart('projectInteractionsChart', 'No interaction data available.'); } } else { console.error("aggregateData for Project Interactions returned invalid data:", projectAggData); handleEmptyChart('projectInteractionsChart', 'Error aggregating data.');}
-
-        // 3. Link Click Types
-        console.log("Processing Chart 3: Link Click Types"); console.log(" -> Calling aggregateData for Link Click Types...");
-        const linkAggData = aggregateData( events, e => e.type === 'link_click', event => event.linkType || 'Unknown', key => key.replace(/_/g, ' ').replace('link', '').trim().toUpperCase(), 10 );
-        console.log(" <- Returned from aggregateData for Link Click Types:", linkAggData);
-        if (linkAggData && Array.isArray(linkAggData.labels) && Array.isArray(linkAggData.data)) { const { labels: linkLabels, data: linkData } = linkAggData; console.log("Aggregated data for Link Click Types:", { labels: linkLabels, data: linkData }); if (linkLabels.length > 0) { renderChart('linkTypesChart', 'doughnut', { labels: linkLabels, datasets: [{ label: 'Link Types', data: linkData, backgroundColor: colors.slice(2), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); console.log("Finished Chart 3"); } else { handleEmptyChart('linkTypesChart', 'No link click data available.'); } } else { console.error("aggregateData for Link Click Types returned invalid data:", linkAggData); handleEmptyChart('linkTypesChart', 'Error aggregating data.');}
-
-        // 4. Modal Opens
-        console.log("Processing Chart 4: Modal Opens"); console.log(" -> Calling aggregateData for Modal Opens...");
-        const modalAggData = aggregateData( events, e => e.type === 'modal_open', event => event.modalType || event.modalId || 'Unknown', key => key.replace(/_/g, ' ').replace('modal', '').trim().toUpperCase(), 10 );
-        console.log(" <- Returned from aggregateData for Modal Opens:", modalAggData);
-        if (modalAggData && Array.isArray(modalAggData.labels) && Array.isArray(modalAggData.data)) { const { labels: modalLabels, data: modalData } = modalAggData; console.log("Aggregated data for Modal Opens:", { labels: modalLabels, data: modalData }); if (modalLabels.length > 0) { renderChart('modalOpensChart', 'pie', { labels: modalLabels, datasets: [{ label: 'Modal Opens', data: modalData, backgroundColor: colors.slice(1).reverse(), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); console.log("Finished Chart 4"); } else { handleEmptyChart('modalOpensChart', 'No modal open data available.'); } } else { console.error("aggregateData for Modal Opens returned invalid data:", modalAggData); handleEmptyChart('modalOpensChart', 'Error aggregating data.');}
-
-        // 5. Event Types Distribution
-        console.log("Processing Chart 5: Event Types Distribution"); console.log(" -> Calling aggregateData for Event Types...");
-        const eventTypeAggData = aggregateData( events, e => true, event => event.type || 'Unknown Type', key => key.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '), 12 );
-        console.log(" <- Returned from aggregateData for Event Types:", eventTypeAggData);
-        if (eventTypeAggData && Array.isArray(eventTypeAggData.labels) && Array.isArray(eventTypeAggData.data)) { const { labels: eventTypeLabels, data: eventTypeData } = eventTypeAggData; console.log("Aggregated data for Event Types:", { labels: eventTypeLabels, data: eventTypeData }); if (eventTypeLabels.length > 0) { renderChart('eventTypesChart', 'bar', { labels: eventTypeLabels, datasets: [{ label: 'Event Count', data: eventTypeData, backgroundColor: colors[4] }] }, { indexAxis: 'y', scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: {} }, plugins: { legend: { display: false } } }); console.log("Finished Chart 5"); } else { handleEmptyChart('eventTypesChart', 'No event data available.'); } } else { console.error("aggregateData for Event Types returned invalid data:", eventTypeAggData); handleEmptyChart('eventTypesChart', 'Error aggregating data.');}
-
-        // 6. Screen Width Distribution
-        console.log("Processing Chart 6: Screen Width Distribution");
-        const screenWidthCanvas = document.getElementById('screenWidthChart');
-        if (screenWidthCanvas) { console.log(" -> Calling aggregateData for Screen Width..."); const screenWidthAggData = aggregateData( events, event => event.screenWidth != null && !isNaN(parseInt(event.screenWidth, 10)) && parseInt(event.screenWidth, 10) > 0, event => { const width = parseInt(event.screenWidth, 10); if (width <= 480) return '<= 480px (Mobile)'; if (width <= 768) return '481-768px (Tablet)'; if (width <= 1024) return '769-1024px (Sm Laptop)'; if (width <= 1440) return '1025-1440px (Desktop)'; return '> 1440px (Lrg Desktop)'; }, null, 8 ); console.log(" <- Returned from aggregateData for Screen Width:", screenWidthAggData); if (screenWidthAggData && Array.isArray(screenWidthAggData.labels) && Array.isArray(screenWidthAggData.data)) { const { labels: screenWidthLabels, data: screenWidthData } = screenWidthAggData; console.log("Aggregated data for Screen Width:", { labels: screenWidthLabels, data: screenWidthData }); if (screenWidthLabels.length > 0) { renderChart('screenWidthChart', 'doughnut', { labels: screenWidthLabels, datasets: [{ label: 'Screen Widths', data: screenWidthData, backgroundColor: colors.slice(3), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); console.log("Finished Chart 6"); } else { handleEmptyChart('screenWidthChart', 'No screen width data available.'); } } else { console.error("aggregateData for Screen Width returned invalid data:", screenWidthAggData); handleEmptyChart('screenWidthChart', 'Error aggregating data.');} } else { console.error("Canvas element #screenWidthChart not found."); }
-
-    } catch (renderChartsError) {
-        console.error("Error during renderCharts function execution:", renderChartsError);
-        statusEl.textContent = `Error rendering charts: ${renderChartsError.message}`;
-    } finally {
-         console.log("--- Finished renderCharts ---");
+    // --- Scroll to Top Button ---
+    // --- MODIFY click listener to use new tracker ---
+    if (scrollToTopBtn) {
+        window.addEventListener('scroll', () => { /* toggle visibility */ }, { passive: true });
+        scrollToTopBtn.addEventListener('click', () => {
+             // Track the click event
+             if (window.portfolioTracker) {
+                 window.portfolioTracker.trackEvent('scroll_to_top');
+             }
+             window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
     }
-}
+    // --- END Scroll to Top Button ---
 
-// Helper function to handle empty chart state
-function handleEmptyChart(canvasId, message) {
-    console.log(`Handling empty chart: ${canvasId} - ${message}`);
-    const canvas = document.getElementById(canvasId);
-    if (canvas) { if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; } const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.font = '16px Arial'; ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--secondary-text').trim() || '#888'; ctx.textAlign = 'center'; ctx.fillText(message, canvas.width / 2, canvas.height / 2); }
-}
 
-// --- renderChart ---
-function renderChart(canvasId, type, data, options = {}) {
-    const canvas = document.getElementById(canvasId); if (!canvas) { console.error(`Canvas element with ID "${canvasId}" not found.`); return; } const ctx = canvas.getContext('2d'); if (!ctx) { console.error(`Failed to get 2D context for canvas "${canvasId}".`); return; }
-    const baseOptions = { scales: { x: { grid: { color: Chart.defaults.borderColor }, ticks: { color: Chart.defaults.color } }, y: { grid: { color: Chart.defaults.borderColor }, ticks: { color: Chart.defaults.color } } }, plugins: { legend: { labels: { color: Chart.defaults.color } } } }; function mergeDeep(target, source) { for (const key in source) { if (source[key] instanceof Object && key in target && target[key] instanceof Object) { mergeDeep(target[key], source[key]); } else { target[key] = source[key]; } } return target; } const defaultOptions = { responsive: true, maintainAspectRatio: false }; const mergedOptions = mergeDeep(mergeDeep({ ...defaultOptions }, baseOptions), options);
-    if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
-    try { console.log(`Rendering chart: ${canvasId}`); chartInstances[canvasId] = new Chart(ctx, { type, data, options: mergedOptions }); }
-    catch (chartError) { console.error(`Error creating Chart.js instance for ${canvasId}:`, chartError); statusEl.textContent = `Error rendering chart ${canvasId}`; ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.font = '16px Arial'; ctx.fillStyle = 'red'; ctx.textAlign = 'center'; ctx.fillText(`Chart Error: ${chartError.message}`, canvas.width / 2, canvas.height / 2); }
-}
-// --- END OF FILE dashboard.js ---
+    // ... (Keep Footer Year) ...
+    // ... (Keep Image Protection) ...
+    // ... (Keep Feedback Slider Logic - no tracking added here, but could track hover/interaction if desired) ...
+
+    console.log('Portfolio script fully initialized.');
+
+}); // End DOMContentLoaded
+
+// --- END OF FILE script.js (Integrated Tracker) ---
