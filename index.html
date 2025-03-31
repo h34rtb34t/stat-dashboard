@@ -5,18 +5,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portfolio Stats Dashboard</title>
+
+    <!-- *** ADD Leaflet CSS *** -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+
     <link rel="stylesheet" href="dashboard.css">
     <!-- Include Chart.js and date adapter -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
-    <!-- ... (header, controls, summary, charts - unchanged) ... -->
+    <!-- Header (Unchanged) -->
      <header class="app-header">
         <h1>Portfolio Statistics</h1>
         <button id="themeToggleBtn" title="Toggle Theme">🌙</button>
     </header>
 
+    <!-- Controls (Unchanged) -->
     <div class="controls">
         <label for="secretToken">Auth Token:</label>
         <input type="password" id="secretToken" placeholder="Enter your secret token">
@@ -24,13 +31,16 @@
         <p id="status"></p>
     </div>
 
+    <!-- Summary Boxes (Unchanged) -->
     <div class="summary-boxes">
          <div class="summary-box" id="totalViewsBox"><h2>Total Views</h2><span class="value">--</span></div>
          <div class="summary-box" id="uniqueDaysBox"><h2>Unique Days (Approx)</h2><span class="value">--</span></div>
          <!-- Add more summary boxes as needed -->
     </div>
 
+    <!-- Charts Container -->
     <div class="charts-container">
+        <!-- Existing Chart Boxes (Unchanged) -->
         <div class="chart-box">
             <h2>Page Views Over Time</h2>
             <canvas id="pageViewsChart"></canvas>
@@ -49,56 +59,57 @@
          </div>
          <div class="chart-box">
              <h2>Event Types Distribution</h2>
-             <canvas id="eventTypesChart"></canvas> <!-- New Chart -->
+             <canvas id="eventTypesChart"></canvas>
          </div>
          <div class="chart-box">
              <h2>Screen Width Distribution</h2>
-             <canvas id="screenWidthChart"></canvas> <!-- New Chart -->
+             <canvas id="screenWidthChart"></canvas>
          </div>
+
+        <!-- *** START: New Map Container *** -->
+        <div class="chart-box" id="locationMapContainer">
+            <h2>Recent Visitor Locations</h2>
+            <div id="locationMap"></div> <!-- Leaflet map will be rendered here -->
+        </div>
+        <!-- *** END: New Map Container *** -->
+
     </div>
 
-    <!-- START: Modified Section for Raw Events -->
+    <!-- Raw Events Table Section (Unchanged) -->
     <details class="raw-events-details">
         <summary class="table-heading">
             Recent Raw Events (Latest 500)
         </summary>
-
-        <!-- START: Filter Controls -->
+        <!-- Filters (Unchanged) -->
         <div class="raw-events-filters">
              <div class="filter-group">
                  <label for="filterEventType">Filter by Type:</label>
                  <select id="filterEventType">
                      <option value="">All Types</option>
-                     <!-- Options will be populated by JS -->
                  </select>
              </div>
              <div class="filter-group">
                  <label for="filterKeyword">Search:</label>
                  <input type="search" id="filterKeyword" placeholder="General keyword...">
              </div>
-             <!-- START: New Filters -->
              <div class="filter-group">
                  <label for="filterLinkType">Link Type:</label>
                  <select id="filterLinkType">
                      <option value="">All Link Types</option>
-                     <!-- Options will be populated by JS -->
                  </select>
              </div>
               <div class="filter-group">
                  <label for="filterModalType">Modal Type/ID:</label>
                  <select id="filterModalType">
                      <option value="">All Modal Types/IDs</option>
-                     <!-- Options will be populated by JS -->
                  </select>
              </div>
              <div class="filter-group">
                  <label for="filterProjectId">Project ID/Context:</label>
                  <input type="search" id="filterProjectId" placeholder="Project keyword...">
              </div>
-             <!-- END: New Filters -->
         </div>
-        <!-- END: Filter Controls -->
-
+        <!-- Table Wrapper & Table (Unchanged) -->
         <div class="table-wrapper">
             <table id="rawEventsTable">
                 <thead>
@@ -115,12 +126,16 @@
             </table>
         </div>
     </details>
-    <!-- END: Modified Section for Raw Events -->
 
-
-    <!-- Scroll to Top Button -->
+    <!-- Scroll to Top Button (Unchanged) -->
     <button id="scrollToTopBtn" title="Go to top">↑</button>
 
+    <!-- *** ADD Leaflet JS (Before dashboard.js) *** -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+    <!-- Your Dashboard Script -->
     <script src="dashboard.js"></script>
 </body>
 </html>
