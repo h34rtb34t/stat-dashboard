@@ -252,9 +252,8 @@ a:hover {
 
 /* --- START: Added styles for Location Map --- */
 #locationMapContainer {
-    /* Optional: Adjust grid span if needed, e.g., if you want it wider */
-    /* grid-column: span 2; */
-    /* Ensures the map container behaves like other chart boxes */
+    /* This makes the map container span the full width of the grid */
+    grid-column: 1 / -1;
 }
 
 #locationMap {
