@@ -1,8 +1,8 @@
 // --- START OF FILE dashboard.js ---
 
 // --- Configuration ---
-// PASTE THE URL FOR YOUR *RETRIEVAL* WORKER HERE:
-const RETRIEVAL_WORKER_URL = 'https://patient-mode-9cfb.azelbane87.workers.dev'; // <-- REPLACE WITH YOUR ACTUAL URL
+// Your actual Retrieval Worker URL is placed here now:
+const RETRIEVAL_WORKER_URL = 'https://patient-mode-9cfb.azelbane87.workers.dev/'; // <-- YOUR URL IS HERE NOW
 
 const CHART_COLORS_CSS = [
     'var(--chart-color-1)', 'var(--chart-color-2)', 'var(--chart-color-3)',
@@ -124,7 +124,7 @@ function initializeMap() {
         // Add OpenStreetMap tile layer (requires attribution)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 18, // You can adjust this
-            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' // Corrected attribution symbol
         }).addTo(mapInstance);
 
         // Layer group for markers, allows easy clearing
@@ -245,24 +245,19 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// --- Core Fetch Function (MODIFIED to call map render) ---
+// --- Core Fetch Function (CORRECTED URL USAGE) ---
 async function fetchData() {
     const secretToken = secretTokenInput.value.trim();
     if (!secretToken) {
         statusEl.textContent = 'Please enter the Auth Token.';
         return;
     }
-    if (!RETRIEVAL_WORKER_URL || RETRIEVAL_WORKER_URL === 'https://patient-mode-9cfb.azelbane87.workers.dev/' || RETRIEVAL_WORKER_URL.includes('patient-mode')) { // Safety check
-         // Make sure the placeholder URL is replaced!
-         if (RETRIEVAL_WORKER_URL.includes('patient-mode')) {
-             statusEl.textContent = 'ERROR: Please replace the placeholder RETRIEVAL_WORKER_URL in dashboard.js with your actual worker URL.';
-             console.error('ERROR: Placeholder RETRIEVAL_WORKER_URL detected. Please update dashboard.js.');
-             return;
-         }
-         statusEl.textContent = 'ERROR: Retrieval Worker URL not configured in dashboard.js';
-         console.error('ERROR: Retrieval Worker URL not configured in dashboard.js');
+    // Simplified URL check - just make sure it's not empty or obviously a placeholder remnant
+     if (!RETRIEVAL_WORKER_URL || RETRIEVAL_WORKER_URL.includes('REPLACE') || RETRIEVAL_WORKER_URL.length < 20) { // Basic sanity check
+         statusEl.textContent = 'ERROR: RETRIEVAL_WORKER_URL seems invalid or not configured in dashboard.js.';
+         console.error('ERROR: Invalid RETRIEVAL_WORKER_URL detected:', RETRIEVAL_WORKER_URL);
          return;
-    }
+     }
 
     statusEl.textContent = 'Fetching data...';
     fetchDataBtn.disabled = true; // Prevent multiple clicks
@@ -284,10 +279,13 @@ async function fetchData() {
     resetFilters(); // Reset filter inputs for table
 
     try {
-        const response = await fetch(https://patient-mode-9cfb.azelbane87.workers.dev/, {
+        // ***** CORRECTION HERE: Use the RETRIEVAL_WORKER_URL variable *****
+        const response = await fetch(RETRIEVAL_WORKER_URL, { // <--- USE THE VARIABLE
             method: 'GET',
             headers: { 'Authorization': `Bearer ${secretToken}` }
         });
+        // ***** END CORRECTION *****
+
 
         if (response.status === 401) throw new Error('Unauthorized. Check Auth Token.');
         if (response.status === 403) throw new Error('Forbidden. Check Worker CORS configuration for dashboard URL.');
