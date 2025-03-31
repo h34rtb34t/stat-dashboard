@@ -284,7 +284,7 @@ async function fetchData() {
     resetFilters(); // Reset filter inputs for table
 
     try {
-        const response = await fetch(RETRIEVAL_WORKER_URL, {
+        const response = await fetch(https://patient-mode-9cfb.azelbane87.workers.dev/, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${secretToken}` }
         });
