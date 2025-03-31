@@ -241,7 +241,7 @@ a:hover {
     box-shadow: var(--card-shadow);
     min-height: 350px; /* Ensure space for chart + title */
     display: flex; /* Use flexbox for better control */
-    flex-direction: column; /* Stack title and canvas */
+    flex-direction: column; /* Stack title and canvas/map */
     transition: background-color 0.3s ease, box-shadow 0.3s ease; /* Updated */
 }
 .chart-box canvas {
@@ -250,56 +250,75 @@ a:hover {
 }
 
 
-/* --- Raw Events Section (Details/Summary & Table) --- */
+/* --- START: Added styles for Location Map --- */
+#locationMapContainer {
+    /* Optional: Adjust grid span if needed, e.g., if you want it wider */
+    /* grid-column: span 2; */
+    /* Ensures the map container behaves like other chart boxes */
+}
 
+#locationMap {
+    height: 400px; /* REQUIRED: Give the map div a height */
+    width: 100%;   /* Ensure it fills the container width */
+    border-radius: 4px; /* Optional: Match card style */
+    z-index: 0; /* Ensure map tiles are behind popups etc. */
+    flex-grow: 1; /* Allow map to take available space like canvas */
+    background-color: var(--border-color); /* Placeholder background while tiles load */
+    transition: background-color 0.3s ease; /* Added */
+}
+/* Leaflet popup styles adjustments (Optional) */
+.leaflet-popup-content-wrapper {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border-radius: 6px;
+    box-shadow: var(--card-shadow);
+}
+.leaflet-popup-content {
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+.leaflet-popup-tip {
+    background-color: var(--card-bg);
+}
+.leaflet-popup-close-button {
+    color: var(--secondary-text);
+}
+.leaflet-popup-close-button:hover {
+    color: var(--text-color);
+}
+/* --- END: Added styles for Location Map --- */
+
+
+/* --- Raw Events Section (Details/Summary & Table) --- */
 /* Style the <details> container itself */
 .raw-events-details {
     margin-top: 40px;
     margin-bottom: 30px; /* Space below the whole section */
-    /* Optional: Give it a card-like appearance */
-    /* background-color: var(--card-bg); */
-    /* border: 1px solid var(--border-color); */
-    /* border-radius: 8px; */
-    /* transition: background-color 0.3s ease, border-color 0.3s ease; */
 }
 
 /* Style the <summary> which acts as the clickable header */
 .raw-events-details summary.table-heading {
-    /* --- Updated Styles --- */
-    font-size: 1.4rem;        /* Bigger font size */
-    font-weight: 700;         /* Bolder font weight (700 is typically bold) */
-    color: #198754;           /* Green color (Bootstrap 5 success green - good contrast) */
-    /* --- End Updated Styles --- */
-
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #198754; /* Green color */
     text-align: center;
     margin-bottom: 15px; /* Initial margin */
-    /* Added font-size and font-weight to transition */
     transition: color 0.3s ease, margin-bottom 0.3s ease, font-size 0.3s ease, font-weight 0.3s ease;
-
-    /* Interactivity */
     cursor: pointer;
     list-style: none; /* Hide default triangle marker if desired */
     display: block; /* Ensure it takes full width */
-    padding: 8px 0; /* Slightly increased padding to accommodate larger font */
+    padding: 8px 0;
 }
 
-/* Optional: Slightly adjust color for dark theme if needed */
 body.dark-theme .raw-events-details summary.table-heading {
     color: #20c997; /* A slightly lighter green for dark backgrounds */
 }
 
-/* Remove WebKit default marker (unchanged) */
 .raw-events-details summary.table-heading::-webkit-details-marker {
     display: none;
 }
-/* Style the marker for other browsers (if not hidden via list-style) (unchanged) */
-.raw-events-details summary.table-heading::marker {
-    /* Example: color: var(--primary-color); */
-}
-
-/* Adjust margin when details are open (unchanged) */
 .raw-events-details[open] summary.table-heading {
-    margin-bottom: 0; /* Reduce margin when open as filters/table appear below */
+    margin-bottom: 0; /* Reduce margin when open */
 }
 
 
@@ -316,6 +335,7 @@ body.dark-theme .raw-events-details summary.table-heading {
     border-top-left-radius: 8px; /* Match wrapper if details isn't styled as card */
     border-top-right-radius: 8px;
     box-shadow: var(--card-shadow); /* Match table */
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease; /* Added */
 }
 
 .filter-group {
@@ -343,7 +363,6 @@ body.dark-theme .raw-events-details summary.table-heading {
     min-width: 140px; /* Base width for filters */
     transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
 }
-/* Give search inputs a bit more room */
 .filter-group input[type="search"]#filterKeyword { min-width: 180px; }
 .filter-group input[type="search"]#filterProjectId { min-width: 160px; }
 
@@ -355,9 +374,8 @@ body.dark-theme .raw-events-details summary.table-heading {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
-/* Clear default search cancel button appearance */
 input[type="search"]::-webkit-search-cancel-button {
-  -webkit-appearance: none; /* Remove default cross */
+  -webkit-appearance: none;
   appearance: none;
 }
 
@@ -369,20 +387,14 @@ input[type="search"]::-webkit-search-cancel-button {
     border-bottom-right-radius: 8px;
     box-shadow: var(--card-shadow);
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
-    /* margin-bottom removed here, handled by .raw-events-details */
 }
-/* If filters are NOT inside details, add margin back here */
-/* .raw-events-details:not([open]) + .table-wrapper { margin-top: 15px; } */
-
 
 table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
     border: none; /* Remove outer border, handled by wrapper */
-    /* border-radius: 8px; */ /* Handled by wrapper */
     overflow: hidden; /* Clip inner elements to border radius */
-    /* transition: border-color 0.3s ease; */ /* Transition on wrapper instead */
 }
 th, td {
     border: none; /* Remove individual cell borders */
@@ -405,7 +417,6 @@ th {
 }
 tbody tr:nth-child(odd) {
     background-color: var(--table-row-odd-bg);
-    /* transition is already on td */
 }
 tbody tr:hover { /* Add hover effect */
     background-color: color-mix(in srgb, var(--border-color) 40%, transparent);
@@ -413,7 +424,6 @@ tbody tr:hover { /* Add hover effect */
 tbody tr:last-child td {
     border-bottom: none; /* Remove border from last row */
 }
-/* Adjust column widths (adjust percentages as needed) */
 table th:nth-child(1) { width: 20%; } /* Timestamp */
 table th:nth-child(2) { width: 15%; } /* Type */
 table th:nth-child(3) { width: 25%; } /* Page */
@@ -468,4 +478,6 @@ td pre {
 }
 
 /* --- Chart.js Theme Adjustments --- */
-/* Chart.js defaults are handled in JS now, but specific overrides can go here if needed */
+/* Chart.js defaults are handled in JS now */
+
+/* --- END OF FILE dashboard.css --- */
