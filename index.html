@@ -38,54 +38,42 @@
          <!-- Add more summary boxes as needed -->
     </div>
 
-    <!-- Charts Container (CORRECTED STRUCTURE) -->
+    <!-- Charts Container -->
     <div class="charts-container">
-        <!-- Chart 1: Page Views -->
+        <!-- Existing Chart Boxes (Unchanged) -->
         <div class="chart-box">
             <h2>Page Views Over Time</h2>
             <canvas id="pageViewsChart"></canvas>
         </div>
-
-        <!-- Chart 2: Project Interactions (Restored) -->
         <div class="chart-box">
              <h2>Top Project Interactions</h2>
-             <canvas id="projectInteractionsChart"></canvas> <!-- CORRECT ID -->
+             <canvas id="projectInteractionsChart"></canvas>
         </div>
-
-        <!-- Chart 3: Link Clicks per Project (Corrected ID and removed duplicate) -->
          <div class="chart-box">
-             <h2>Link Clicks per Project</h2>
-             <canvas id="linkTypesChart"></canvas> <!-- Keep this ID for Chart 3 logic -->
+             <h2>Link Click Types</h2>
+             <canvas id="linkTypesChart"></canvas>
          </div>
-
-        <!-- Chart 4: Modal Opens -->
          <div class="chart-box">
              <h2>Modal Opens</h2>
              <canvas id="modalOpensChart"></canvas>
          </div>
-
-        <!-- Chart 5: Event Types Distribution -->
          <div class="chart-box">
              <h2>Event Types Distribution</h2>
              <canvas id="eventTypesChart"></canvas>
          </div>
-
-        <!-- Chart 6: Screen Width Distribution -->
          <div class="chart-box">
              <h2>Screen Width Distribution</h2>
              <canvas id="screenWidthChart"></canvas>
          </div>
 
-        <!-- Map Container -->
+        <!-- *** START: New Map Container *** -->
         <div class="chart-box" id="locationMapContainer">
             <h2>Recent Visitor Locations</h2>
-            <div id="locationMap"></div>
+            <div id="locationMap"></div> <!-- Leaflet map will be rendered here -->
         </div>
-        <!-- END: Map Container -->
+        <!-- *** END: New Map Container *** -->
 
     </div>
-    <!-- End Charts Container -->
-
 
     <!-- Raw Events Table Section (Unchanged) -->
     <details class="raw-events-details">
