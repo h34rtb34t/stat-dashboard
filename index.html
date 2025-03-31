@@ -1,4 +1,44 @@
-    <!-- Charts Container -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Stats Dashboard</title>
+
+    <!-- *** ADD Leaflet CSS *** -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+
+    <link rel="stylesheet" href="dashboard.css">
+    <!-- Include Chart.js and date adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+    <!-- Header (Unchanged) -->
+     <header class="app-header">
+        <h1>Portfolio Statistics</h1>
+        <button id="themeToggleBtn" title="Toggle Theme">🌙</button>
+    </header>
+
+    <!-- Controls (Unchanged) -->
+    <div class="controls">
+        <label for="secretToken">Auth Token:</label>
+        <input type="password" id="secretToken" placeholder="Enter your secret token">
+        <button id="fetchDataBtn">Fetch Data</button>
+        <p id="status"></p>
+    </div>
+
+    <!-- Summary Boxes (Unchanged) -->
+    <div class="summary-boxes">
+         <div class="summary-box" id="totalViewsBox"><h2>Total Views</h2><span class="value">--</span></div>
+         <div class="summary-box" id="uniqueDaysBox"><h2>Unique Days (Approx)</h2><span class="value">--</span></div>
+         <!-- Add more summary boxes as needed -->
+    </div>
+
+    <!-- Charts Container (CORRECTED STRUCTURE) -->
     <div class="charts-container">
         <!-- Chart 1: Page Views -->
         <div class="chart-box">
@@ -41,6 +81,73 @@
             <h2>Recent Visitor Locations</h2>
             <div id="locationMap"></div>
         </div>
-        <!-- END: New Map Container -->
+        <!-- END: Map Container -->
 
     </div>
+    <!-- End Charts Container -->
+
+
+    <!-- Raw Events Table Section (Unchanged) -->
+    <details class="raw-events-details">
+        <summary class="table-heading">
+            Recent Raw Events (Latest 500)
+        </summary>
+        <!-- Filters (Unchanged) -->
+        <div class="raw-events-filters">
+             <div class="filter-group">
+                 <label for="filterEventType">Filter by Type:</label>
+                 <select id="filterEventType">
+                     <option value="">All Types</option>
+                 </select>
+             </div>
+             <div class="filter-group">
+                 <label for="filterKeyword">Search:</label>
+                 <input type="search" id="filterKeyword" placeholder="General keyword...">
+             </div>
+             <div class="filter-group">
+                 <label for="filterLinkType">Link Type:</label>
+                 <select id="filterLinkType">
+                     <option value="">All Link Types</option>
+                 </select>
+             </div>
+              <div class="filter-group">
+                 <label for="filterModalType">Modal Type/ID:</label>
+                 <select id="filterModalType">
+                     <option value="">All Modal Types/IDs</option>
+                 </select>
+             </div>
+             <div class="filter-group">
+                 <label for="filterProjectId">Project ID/Context:</label>
+                 <input type="search" id="filterProjectId" placeholder="Project keyword...">
+             </div>
+        </div>
+        <!-- Table Wrapper & Table (Unchanged) -->
+        <div class="table-wrapper">
+            <table id="rawEventsTable">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Type</th>
+                        <th>Page</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data rows will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <!-- Scroll to Top Button (Unchanged) -->
+    <button id="scrollToTopBtn" title="Go to top">↑</button>
+
+    <!-- *** ADD Leaflet JS (Before dashboard.js) *** -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+    <!-- Your Dashboard Script -->
+    <script src="dashboard.js"></script>
+</body>
+</html>
