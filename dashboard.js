@@ -6,7 +6,7 @@
 (function() {
     // --- Configuration ---
     // IMPORTANT: Replace with the URL of your DEPLOYED logging-worker
-    const LOGGING_WORKER_URL = 'https://YOUR_LOGGING_WORKER_SUBDOMAIN.YOUR_WORKERS_DOMAIN.workers.dev/log'; // <<<<<------ SET THIS ******
+    const LOGGING_WORKER_URL = 'https://stats-ingress-worker.azelbane87.workers.dev/'; // <<<<<------ SET THIS ******
     // Optional: Add a simple secret if you want basic verification on the logging worker
     // const TRACKING_SECRET = 'your_optional_simple_secret';
 
