@@ -1,7 +1,6 @@
 // --- START OF FILE dashboard.js ---
 
 // --- Configuration ---
-// PASTE THE URL FOR YOUR *RETRIEVAL* WORKER HERE:
 const RETRIEVAL_WORKER_URL = 'https://patient-mode-9cfb.azelbane87.workers.dev/'; // <-- YOUR URL IS HERE
 
 const CHART_COLORS_CSS = [
@@ -45,7 +44,7 @@ let darkTileLayer = null;
 // --- State ---
 let currentRawEvents = []; // Store the last fetched events
 
-// --- Theme Handling (Includes Map Layer Switching) ---
+// --- Theme Handling ---
 function applyTheme(theme) {
     const isDark = theme === 'dark';
     document.body.classList.toggle('dark-theme', isDark);
@@ -114,7 +113,7 @@ function initializeMap() {
         mapInstance = L.map('locationMap').setView([20, 0], 2);
         lightTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors' });
         darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© <a href="https://osm.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>', subdomains: 'abcd', maxZoom: 19 });
-        const initialThemeIsDark = document.body.classList.contains('dark-theme'); // Check theme AFTER applyTheme might have run
+        const initialThemeIsDark = document.body.classList.contains('dark-theme');
         if (initialThemeIsDark) { darkTileLayer.addTo(mapInstance); } else { lightTileLayer.addTo(mapInstance); }
         markerLayerGroup = L.layerGroup().addTo(mapInstance);
         console.log("Map initialized successfully.");
@@ -138,75 +137,44 @@ function renderLocationMap(events) {
     console.log(`Added ${locationsAdded} markers to the map.`);
 }
 
-// Apply saved theme and set up listeners on load (Includes Debug Logging)
+// Apply saved theme and set up listeners on load
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOMContentLoaded event fired."); // <-- LOG 1
+    initializeMap(); // Initialize map FIRST
+    const savedTheme = localStorage.getItem('dashboardTheme') || 'light';
+    applyTheme(savedTheme); // Apply initial theme AFTER map structure is ready
 
-    try { // Wrap initialization and event listener attachment in try...catch
-        initializeMap(); // Initialize map FIRST
-        console.log("Map initialized (or attempted)."); // <-- LOG 2
-
-        const savedTheme = localStorage.getItem('dashboardTheme') || 'light';
-        applyTheme(savedTheme); // Apply initial theme AFTER map structure is ready
-        console.log("Initial theme applied."); // <-- LOG 3
-
-        // Event Listeners
-        if (fetchDataBtn) {
-            fetchDataBtn.addEventListener('click', fetchData); // Ensure listener is attached
-            console.log("Fetch Data button event listener ATTACHED."); // <-- LOG 4
-        } else {
-            console.error("Fetch Data button element NOT FOUND!");
-        }
-
-        if (secretTokenInput) {
-             secretTokenInput.addEventListener('keypress', function (e) { if (e.key === 'Enter') fetchData(); });
-             console.log("Secret token input listener attached.");
-        } else { console.error("Secret token input element NOT FOUND!"); }
-
-        if (themeToggleBtn) {
-            themeToggleBtn.addEventListener('click', toggleTheme);
-            console.log("Theme toggle button listener attached.");
-        } else { console.error("Theme toggle button element NOT FOUND!"); }
-
-        window.addEventListener('scroll', handleScroll);
-        scrollToTopBtn.addEventListener('click', goToTop);
-        filterEventTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-        filterKeywordInput.addEventListener('input', applyFiltersAndDisplayEvents);
-        filterLinkTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-        filterModalTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-        filterProjectIdInput.addEventListener('input', applyFiltersAndDisplayEvents);
-        console.log("Other event listeners attached."); // <-- LOG 5
-
-        handleScroll(); // Initial check for scroll position
-
-    } catch (domError) {
-         console.error("***** ERROR DURING DOMCONTENTLOADED EXECUTION *****", domError);
-         // Display error prominently to the user if setup fails
-         statusEl.textContent = `CRITICAL ERROR: Dashboard failed to initialize - ${domError.message}`;
-         if (fetchDataBtn) fetchDataBtn.disabled = true; // Disable button if init fails
-    }
-
-    console.log("DOMContentLoaded handler finished."); // <-- LOG 6
+    // Event Listeners
+    fetchDataBtn.addEventListener('click', fetchData); // Ensure listener is attached
+    secretTokenInput.addEventListener('keypress', function (e) { if (e.key === 'Enter') fetchData(); });
+    themeToggleBtn.addEventListener('click', toggleTheme);
+    window.addEventListener('scroll', handleScroll);
+    scrollToTopBtn.addEventListener('click', goToTop);
+    filterEventTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
+    filterKeywordInput.addEventListener('input', applyFiltersAndDisplayEvents);
+    filterLinkTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
+    filterModalTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
+    filterProjectIdInput.addEventListener('input', applyFiltersAndDisplayEvents);
+    handleScroll();
+    console.log("DOM Content Loaded, event listeners attached."); // Log listener setup
 });
 
-
-// --- Core Fetch Function (Includes Debug Logging) ---
+// --- Core Fetch Function (ADDED DETAILED ENTRY/EXIT LOGGING) ---
 async function fetchData() {
-    console.log("%%%%% fetchData function CALLED! %%%%%"); // <-- LOG A
+    console.log("fetchData function CALLED!"); // <-- Log entry
 
     const secretToken = secretTokenInput.value.trim();
     if (!secretToken) {
         statusEl.textContent = 'Please enter the Auth Token.';
-        console.log("fetchData: Exiting - No secret token.");
+        console.log("fetchData: Exiting - No secret token."); // <-- Log exit reason
         return;
     }
     console.log("fetchData: Secret token found.");
 
-    // Simplified URL check
-     if (!RETRIEVAL_WORKER_URL || RETRIEVAL_WORKER_URL.includes('REPLACE') || RETRIEVAL_WORKER_URL.length < 20) {
+    // Simplified URL check - just make sure it's not empty or obviously a placeholder remnant
+     if (!RETRIEVAL_WORKER_URL || RETRIEVAL_WORKER_URL.includes('REPLACE') || RETRIEVAL_WORKER_URL.length < 20) { // Basic sanity check
          statusEl.textContent = 'ERROR: RETRIEVAL_WORKER_URL seems invalid or not configured in dashboard.js.';
          console.error('ERROR: Invalid RETRIEVAL_WORKER_URL detected:', RETRIEVAL_WORKER_URL);
-         console.log("fetchData: Exiting - Invalid RETRIEVAL_WORKER_URL.");
+         console.log("fetchData: Exiting - Invalid RETRIEVAL_WORKER_URL."); // <-- Log exit reason
          return;
      }
      console.log("fetchData: RETRIEVAL_WORKER_URL seems valid:", RETRIEVAL_WORKER_URL);
@@ -214,9 +182,9 @@ async function fetchData() {
 
     statusEl.textContent = 'Fetching data...';
     console.log("fetchData: Disabling button.");
-    fetchDataBtn.disabled = true;
+    fetchDataBtn.disabled = true; // Prevent multiple clicks
 
-    console.log("fetchData: Clearing UI elements.");
+    console.log("fetchData: Clearing UI elements (table, summary, charts, map).");
     rawEventsTbody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
     resetSummary();
     destroyCharts(); // Destroys Chart.js instances
@@ -229,11 +197,11 @@ async function fetchData() {
     console.log("fetchData: UI cleared, preparing to fetch.");
 
     try {
-        console.log(`fetchData: Attempting fetch from ${RETRIEVAL_WORKER_URL}...`);
+        console.log(`fetchData: Attempting fetch from ${RETRIEVAL_WORKER_URL}...`); // <-- Log before fetch
         const response = await fetch(RETRIEVAL_WORKER_URL, {
             method: 'GET', headers: { 'Authorization': `Bearer ${secretToken}` }
         });
-        console.log("fetchData: Fetch call completed. Status:", response.status);
+        console.log("fetchData: Fetch call completed. Status:", response.status); // <-- Log after fetch
 
         if (response.status === 401) throw new Error('Unauthorized. Check Auth Token.');
         if (response.status === 403) throw new Error('Forbidden. Check Worker CORS configuration for dashboard URL.');
@@ -254,7 +222,7 @@ async function fetchData() {
         populateLinkTypeFilter(currentRawEvents);
         populateModalTypeFilter(currentRawEvents);
         console.log("fetchData: Rendering charts...");
-        renderCharts(currentRawEvents); // This calls the function with detailed logs inside
+        renderCharts(currentRawEvents);
         console.log("fetchData: Applying filters and displaying table...");
         applyFiltersAndDisplayEvents();
         console.log("fetchData: Calculating summary...");
@@ -266,11 +234,11 @@ async function fetchData() {
         console.log("fetchData: Processing complete.");
 
     } catch (error) {
-        console.error('fetchData: Error during fetch or processing:', error);
+        console.error('fetchData: Error during fetch or processing:', error); // <-- Log any error caught
         statusEl.textContent = `Error: ${error.message}`;
         rawEventsTbody.innerHTML = `<tr><td colspan="4" style="color: red;">Error: ${error.message}</td></tr>`;
     } finally {
-         console.log("fetchData: Re-enabling button in finally block.");
+         console.log("fetchData: Re-enabling button in finally block."); // <-- Log before re-enabling
          fetchDataBtn.disabled = false; // Re-enable button
          console.log("fetchData: Function finished.");
     }
@@ -292,7 +260,7 @@ function renderTableBody(events) { rawEventsTbody.innerHTML = ''; if (events.len
 // --- calculateAndDisplaySummary ---
 function calculateAndDisplaySummary(events) { const pageViews = events.filter(e => e.type === 'pageview'); totalViewsEl.textContent = pageViews.length; const uniqueDays = new Set(pageViews.map(e => { try { return new Date(e.receivedAt || e.timestamp).toLocaleDateString(); } catch (err) { return null; } }).filter(d => d !== null)); uniqueDaysEl.textContent = uniqueDays.size; }
 
-// --- aggregateData (Includes safety return) ---
+// --- aggregateData (Includes previous safety return) ---
 function aggregateData(events, filterCondition, keyExtractor, labelExtractor = null, limit = 10) {
     console.log(`--- aggregateData called for: ${keyExtractor.toString().substring(0, 80)}...`);
     let labels = []; let data = [];
@@ -310,11 +278,10 @@ function aggregateData(events, filterCondition, keyExtractor, labelExtractor = n
 }
 
 
-// --- renderCharts (Chart #3 Logic Updated) ---
+// --- renderCharts (Includes previous safety checks) ---
 function renderCharts(events) {
     console.log("--- Starting renderCharts ---");
     const colors = CHART_COLORS_FALLBACK;
-
     try {
         // 1. Page Views Over Time
         console.log("Processing Chart 1: Page Views Over Time");
@@ -330,11 +297,11 @@ function renderCharts(events) {
         console.log(" <- Returned from aggregateData for Project Interactions:", projectAggData);
         if (projectAggData && Array.isArray(projectAggData.labels) && Array.isArray(projectAggData.data)) { const { labels: projectLabels, data: projectData } = projectAggData; console.log("Aggregated data for Project Interactions:", { labels: projectLabels, data: projectData }); if (projectLabels.length > 0) { renderChart('projectInteractionsChart', 'bar', { labels: projectLabels, datasets: [{ label: 'Interactions', data: projectData, backgroundColor: colors[1] }] }, { indexAxis: 'y', scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: {} }, plugins: { legend: { display: false } } }); console.log("Finished Chart 2"); } else { handleEmptyChart('projectInteractionsChart', 'No interaction data available.'); } } else { console.error("aggregateData for Project Interactions returned invalid data:", projectAggData); handleEmptyChart('projectInteractionsChart', 'Error aggregating data.');}
 
-        // 3. Link Clicks per Project (MODIFIED)
-        console.log("Processing Chart 3: Link Clicks per Project"); console.log(" -> Calling aggregateData for Project Link Clicks...");
-        const projectLinkAggData = aggregateData( events, e => e.type === 'link_click' && e.context && e.context !== 'undefined' && e.context !== '', event => event.context, key => String(key).replace(/-/g, ' ').toUpperCase(), 10 );
-        console.log(" <- Returned from aggregateData for Project Link Clicks:", projectLinkAggData);
-        if (projectLinkAggData && Array.isArray(projectLinkAggData.labels) && Array.isArray(projectLinkAggData.data)) { const { labels: projectLinkLabels, data: projectLinkData } = projectLinkAggData; console.log("Aggregated data for Project Link Clicks:", { labels: projectLinkLabels, data: projectLinkData }); if (projectLinkLabels.length > 0) { renderChart('linkTypesChart', 'bar', { labels: projectLinkLabels, datasets: [{ label: 'Link Clicks', data: projectLinkData, backgroundColor: CHART_COLORS_FALLBACK[2], }] }, { indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: {} }, plugins: { legend: { display: false }, tooltip: { displayColors: false } } }); console.log("Finished Chart 3 (Link Clicks per Project)"); } else { handleEmptyChart('linkTypesChart', 'No project-specific link clicks found.'); } } else { console.error("aggregateData for Project Link Clicks returned invalid data:", projectLinkAggData); handleEmptyChart('linkTypesChart', 'Error aggregating project link data.');}
+        // 3. Link Click Types
+        console.log("Processing Chart 3: Link Click Types"); console.log(" -> Calling aggregateData for Link Click Types...");
+        const linkAggData = aggregateData( events, e => e.type === 'link_click', event => event.linkType || 'Unknown', key => key.replace(/_/g, ' ').replace('link', '').trim().toUpperCase(), 10 );
+        console.log(" <- Returned from aggregateData for Link Click Types:", linkAggData);
+        if (linkAggData && Array.isArray(linkAggData.labels) && Array.isArray(linkAggData.data)) { const { labels: linkLabels, data: linkData } = linkAggData; console.log("Aggregated data for Link Click Types:", { labels: linkLabels, data: linkData }); if (linkLabels.length > 0) { renderChart('linkTypesChart', 'doughnut', { labels: linkLabels, datasets: [{ label: 'Link Types', data: linkData, backgroundColor: colors.slice(2), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); console.log("Finished Chart 3"); } else { handleEmptyChart('linkTypesChart', 'No link click data available.'); } } else { console.error("aggregateData for Link Click Types returned invalid data:", linkAggData); handleEmptyChart('linkTypesChart', 'Error aggregating data.');}
 
         // 4. Modal Opens
         console.log("Processing Chart 4: Modal Opens"); console.log(" -> Calling aggregateData for Modal Opens...");
