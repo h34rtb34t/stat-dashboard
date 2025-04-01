@@ -434,83 +434,78 @@ function calculateAndDisplaySummary(events) {
       }
 }
 
-// --- aggregateData --- (Keep existing - unchanged)
-function aggregateData(events, filterCondition, keyExtractor, labelExtractor = formatLabel, limit = 10) { /* ... keep existing ... */ }
-
-
-// --- renderCharts (With Diagnostics) ---
-function renderCharts(events) {
-    console.log("--- Starting renderCharts (With Diagnostics) ---");
-    const colors = CHART_COLORS_FALLBACK;
-
+// --- aggregateData (Improved Error Handling) ---
+function aggregateData(events, filterCondition, keyExtractor, labelExtractor = formatLabel, limit = 10) {
+    console.log(`--- aggregateData called for filter: ${filterCondition.toString().substring(0,50)} | key: ${keyExtractor.toString().substring(0,50)}`);
+    let labels = [];
+    let data = [];
+    // *** Ensure we ALWAYS return a valid object, even on top-level error ***
     try {
-        // 1. Page Views Over Time
-        console.log("Processing Chart 1: Page Views Over Time");
-        const viewsByDate = events.filter(e => e.type === 'pageview' && (e.receivedAt || e.timestamp)).reduce((acc, event) => { try { const date = new Date(event.receivedAt || event.timestamp).toISOString().split('T')[0]; acc[date] = (acc[date] || 0) + 1; } catch(e) {} return acc; }, {});
-        const sortedDates = Object.keys(viewsByDate).sort();
-        const pageViewData = sortedDates.map(date => viewsByDate[date]);
-        console.log(">>> Page Views - Dates:", sortedDates.length, "Data Points:", pageViewData.length); // <<< DIAGNOSTIC LOG
-        if (sortedDates.length > 0) { renderChart('pageViewsChart', 'line', { labels: sortedDates, datasets: [{ label: 'Page Views', data: pageViewData, borderColor: colors[0], backgroundColor: colors[0].replace('0.7', '0.2'), tension: 0.1, fill: true }] }, { scales: { x: { type: 'time', time: { unit: 'day', tooltipFormat: 'PP' } }, y: { beginAtZero: true, suggestedMax: Math.max(5, ...pageViewData) + 3, ticks: { precision: 0 } } } }); }
-        else { handleEmptyChart('pageViewsChart', 'No page view data.'); }
-        console.log("Finished Chart 1");
+        // Filter events safely
+        let filteredEvents = [];
+        try {
+            filteredEvents = events.filter(filterCondition);
+        } catch (filterError) {
+             console.error("!! Error DURING filterCondition execution:", filterError);
+             // Optionally, decide how to proceed: return empty, or try to continue?
+             // For now, let's return empty if filter itself fails critically.
+             return { labels: [], data: [] }; // <<< Return empty object on filter error
+        }
+        // console.log(`  aggregateData: Filtered events count: ${filteredEvents.length}`);
 
-        // 2. Project Interactions
-        console.log("Processing Chart 2: Project Interactions");
-        const projectAggData = aggregateData( events, e => e.projectId || e.details?.projectId || e.details?.context || e.details?.trackId, e => e.projectId || e.details?.projectId || e.details?.trackId || e.details?.context || 'Unknown Project', formatLabel, 10 );
-        console.log(">>> Project Interactions - Aggregated Data:", JSON.stringify(projectAggData)); // <<< DIAGNOSTIC LOG
-        if (projectAggData.labels.length > 0) { renderChart('projectInteractionsChart', 'bar', { labels: projectAggData.labels, datasets: [{ label: 'Interactions', data: projectAggData.data, backgroundColor: colors[1] }] }, { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { precision: 0 }}}}); }
-        else { handleEmptyChart('projectInteractionsChart', 'No project interaction data.'); }
-        console.log("Finished Chart 2");
+        // Extract keys safely
+        let extractedKeys = [];
+        filteredEvents.forEach((event, index) => { // Added index for logging
+            try {
+                extractedKeys.push(keyExtractor(event));
+            } catch (extractError) {
+                console.warn(`!! Error DURING keyExtractor execution (event index ${index}):`, extractError, "for event:", JSON.stringify(event).substring(0, 200));
+                extractedKeys.push(null); // Add null if extractor fails for this specific event
+            }
+        });
+        // console.log(`  aggregateData: Extracted keys count (raw): ${extractedKeys.length}`);
 
-        // 3. Link Click Destinations
-        console.log("Processing Chart 3: Link Click Destinations");
-        const linkDestAggData = aggregateData( events, e => (e.type === 'link_click' || e.type === 'anchor_click') && e.details?.linkType, e => e.details.linkType, formatLabel, 10 );
-        console.log(">>> Link Destinations - Aggregated Data:", JSON.stringify(linkDestAggData)); // <<< DIAGNOSTIC LOG
-         if (linkDestAggData.labels.length > 0) { renderChart('linkTypesChart', 'doughnut', { labels: linkDestAggData.labels, datasets: [{ label: 'Link Types', data: linkDestAggData.data, backgroundColor: colors.slice(2), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); }
-         else { handleEmptyChart('linkTypesChart', 'No link click data.'); }
-        console.log("Finished Chart 3");
+        const validKeys = extractedKeys.filter(value => value !== null && value !== undefined && String(value).trim() !== '');
+        // console.log(`  aggregateData: Valid keys count (non-empty): ${validKeys.length}`);
 
-         // 4. Interaction Click Types
-         console.log("Processing Chart 4: Interaction Click Types");
-         const clickTypesAggData = aggregateData( events, e => ['link_click', 'anchor_click', 'button_click', 'project_click', 'generic_click', 'publication_click', 'project_card_area_click', 'tracked_element_click'].includes(e.type), e => e.type, formatLabel, 10 );
-         console.log(">>> Click Types - Aggregated Data:", JSON.stringify(clickTypesAggData)); // <<< DIAGNOSTIC LOG
-          if (clickTypesAggData.labels.length > 0) { renderChart('clickTypesChart', 'pie', { labels: clickTypesAggData.labels, datasets: [{ label: 'Click Types', data: clickTypesAggData.data, backgroundColor: colors.slice(3), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); }
-          else { handleEmptyChart('clickTypesChart', 'No click type data.'); }
-         console.log("Finished Chart 4");
+        if (validKeys.length === 0) {
+             // console.log("  aggregateData: No valid keys found after filtering/extraction.");
+             return { labels: [], data: [] }; // <<< Return empty object if no valid keys
+        }
 
-        // 5. Modal Opens
-        console.log("Processing Chart 5: Modal Opens");
-        const modalAggData = aggregateData( events, e => e.type === 'modal_open' && (e.details?.modalId || e.modalId || e.modalType), e => e.details?.modalId || e.modalId || e.modalType, formatLabel, 10 );
-        console.log(">>> Modal Opens - Aggregated Data:", JSON.stringify(modalAggData)); // <<< DIAGNOSTIC LOG
-        if (modalAggData.labels.length > 0) { renderChart('modalOpensChart', 'pie', { labels: modalAggData.labels, datasets: [{ label: 'Modal Opens', data: modalAggData.data, backgroundColor: colors.slice(1).reverse(), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); }
-        else { handleEmptyChart('modalOpensChart', 'No modal open data.'); }
-        console.log("Finished Chart 5");
+        // Aggregate counts
+        const aggregation = validKeys.reduce((acc, value) => {
+             const key = String(value).substring(0, 100);
+             acc[key] = (acc[key] || 0) + 1;
+             return acc;
+        }, {});
+        // console.log(`  aggregateData: Aggregation counts object:`, aggregation);
 
-        // 6. Event Types Distribution
-        console.log("Processing Chart 6: Event Types Distribution");
-        const eventTypeAggData = aggregateData( events, e => true, event => event.type || 'Unknown Type', formatLabel, 15 );
-        console.log(">>> Event Types - Aggregated Data:", JSON.stringify(eventTypeAggData)); // <<< DIAGNOSTIC LOG
-         if (eventTypeAggData.labels.length > 0) { renderChart('eventTypesChart', 'bar', { labels: eventTypeAggData.labels, datasets: [{ label: 'Event Count', data: eventTypeAggData.data, backgroundColor: colors[4] }] }, { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { precision: 0 }}}}); }
-         else { handleEmptyChart('eventTypesChart', 'No event data available.'); }
-        console.log("Finished Chart 6");
+        const sortedEntries = Object.entries(aggregation).sort(([, countA], [, countB]) => countB - countA).slice(0, limit);
+        // console.log(`  aggregateData: Sorted/Limited entries:`, sortedEntries);
 
-        // 7. Screen Width Distribution
-        console.log("Processing Chart 7: Screen Width Distribution");
-         const screenWidthAggData = aggregateData( events, event => event.screenWidth != null && !isNaN(parseInt(event.screenWidth, 10)) && parseInt(event.screenWidth, 10) > 0, event => { const width = parseInt(event.screenWidth, 10); if (width <= 480) return '<= 480px (Mobile)'; if (width <= 768) return '481-768px (Tablet)'; if (width <= 1024) return '769-1024px (Sm Laptop)'; if (width <= 1440) return '1025-1440px (Desktop)'; return '> 1440px (Lrg Desktop)'; }, null, 8 );
-         console.log(">>> Screen Width - Aggregated Data:", JSON.stringify(screenWidthAggData)); // <<< DIAGNOSTIC LOG
-         if (screenWidthAggData.labels.length > 0) { renderChart('screenWidthChart', 'doughnut', { labels: screenWidthAggData.labels, datasets: [{ label: 'Screen Widths', data: screenWidthAggData.data, backgroundColor: colors.slice(5), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); }
-         else { handleEmptyChart('screenWidthChart', 'No screen width data.'); }
-        console.log("Finished Chart 7");
+        // Generate labels/data safely
+        labels = sortedEntries.map(([key]) => {
+            try {
+                 return labelExtractor ? labelExtractor(key) : key;
+            } catch (labelError) {
+                 console.warn("!! Error DURING labelExtractor execution:", labelError, "for key:", key);
+                 return key; // Fallback to raw key
+            }
+        });
+        data = sortedEntries.map(([, count]) => count);
+        // console.log(`  aggregateData: Final labels/data counts: ${labels.length}/${data.length}`);
 
-    } catch (renderChartsError) {
-        console.error("Error during renderCharts function execution:", renderChartsError);
-        statusEl.textContent = `Error rendering charts: ${renderChartsError.message}`;
-        // ... handle empty chart states ...
-    } finally {
-         console.log("--- Finished renderCharts (With Diagnostics) ---");
+    } catch (error) {
+        // Catch any unexpected errors within the main try block
+        console.error(`!!! UNEXPECTED Error inside aggregateData !!!`, error);
+        console.error(`  aggregateData error context: filterCondition=${filterCondition.toString()}, keyExtractor=${keyExtractor.toString()}`);
+        // *** Ensure we return an empty object here too ***
+        return { labels: [], data: [] };
     }
+    // *** Always return the object ***
+    return { labels, data };
 }
-
 // --- handleEmptyChart --- (Keep existing - unchanged)
 function handleEmptyChart(canvasId, message) { /* ... keep existing ... */ }
 
