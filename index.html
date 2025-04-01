@@ -6,87 +6,107 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portfolio Stats Dashboard</title>
 
-    <!-- *** ADD Leaflet CSS *** -->
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
      crossorigin=""/>
 
+    <!-- *** START: Added Leaflet.markercluster CSS *** -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <!-- *** END: Added Leaflet.markercluster CSS *** -->
+
+    <!-- Dashboard CSS -->
     <link rel="stylesheet" href="dashboard.css">
+
     <!-- Include Chart.js and date adapter -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
-    <!-- Header (Unchanged) -->
+    <!-- Header -->
      <header class="app-header">
         <h1>Portfolio Statistics</h1>
         <button id="themeToggleBtn" title="Toggle Theme">🌙</button>
     </header>
 
-    <!-- Controls (Unchanged) -->
+    <!-- Controls -->
     <div class="controls">
         <label for="secretToken">Auth Token:</label>
         <input type="password" id="secretToken" placeholder="Enter your secret token">
         <button id="fetchDataBtn">Fetch Data</button>
+        <!-- *** START: Added Loading Spinner and Auto-Refresh *** -->
+        <div id="loadingSpinner" class="spinner" style="display: none;"></div>
         <p id="status"></p>
+        <div class="control-options">
+             <input type="checkbox" id="autoRefreshCheckbox">
+             <label for="autoRefreshCheckbox">Auto-refresh (5 min)</label>
+        </div>
+         <!-- *** END: Added Loading Spinner and Auto-Refresh *** -->
     </div>
 
-    <!-- Summary Boxes (Unchanged) -->
+    <!-- Summary Boxes -->
     <div class="summary-boxes">
          <div class="summary-box" id="totalViewsBox"><h2>Total Views</h2><span class="value">--</span></div>
          <div class="summary-box" id="uniqueDaysBox"><h2>Unique Days (Approx)</h2><span class="value">--</span></div>
-         <!-- Add more summary boxes as needed -->
+         <!-- *** START: Added Summary Boxes *** -->
+         <div class="summary-box" id="topCountryBox"><h2>Top Country</h2><span class="value">--</span></div>
+         <div class="summary-box" id="topReferrerBox"><h2>Top Referrer</h2><span class="value">--</span></div>
+         <!-- *** END: Added Summary Boxes *** -->
     </div>
 
     <!-- Charts Container -->
-    <!-- *** ADD THIS BLOCK for the Interaction Click Types Chart *** -->
-     <div class="chart-box">
-         <h2>Interaction Click Types</h2>
-         <canvas id="clickTypesChart"></canvas> <!-- <<< THIS WAS MISSING -->
-     </div>
-     <!-- *** END ADDED BLOCK *** -->
     <div class="charts-container">
-        <!-- Existing Chart Boxes (Unchanged) -->
+        <!-- Page Views -->
         <div class="chart-box">
             <h2>Page Views Over Time</h2>
             <canvas id="pageViewsChart"></canvas>
         </div>
+        <!-- Project Interactions -->
         <div class="chart-box">
              <h2>Top Project Interactions</h2>
              <canvas id="projectInteractionsChart"></canvas>
         </div>
+        <!-- Link Click Destinations -->
          <div class="chart-box">
-             <h2>Link Click Types</h2>
+             <h2>Link Click Destinations</h2> <!-- Renamed for clarity -->
              <canvas id="linkTypesChart"></canvas>
          </div>
+        <!-- Interaction Click Types -->
+         <div class="chart-box">
+             <h2>Interaction Click Types</h2>
+             <canvas id="clickTypesChart"></canvas>
+         </div>
+         <!-- Modal Opens -->
          <div class="chart-box">
              <h2>Modal Opens</h2>
              <canvas id="modalOpensChart"></canvas>
          </div>
+         <!-- Event Types -->
          <div class="chart-box">
              <h2>Event Types Distribution</h2>
              <canvas id="eventTypesChart"></canvas>
          </div>
+         <!-- Screen Width -->
          <div class="chart-box">
              <h2>Screen Width Distribution</h2>
              <canvas id="screenWidthChart"></canvas>
          </div>
-
-        <!-- *** START: New Map Container *** -->
+        <!-- Map Container -->
         <div class="chart-box" id="locationMapContainer">
             <h2>Recent Visitor Locations</h2>
             <div id="locationMap"></div> <!-- Leaflet map will be rendered here -->
         </div>
-        <!-- *** END: New Map Container *** -->
-
     </div>
 
-    <!-- Raw Events Table Section (Unchanged) -->
+    <!-- Raw Events Table Section -->
     <details class="raw-events-details">
         <summary class="table-heading">
             Recent Raw Events (Latest 500)
+            <!-- Consider adding initial message like: -->
+            <!-- <span class="initial-message">(Click 'Fetch Data' to load)</span> -->
         </summary>
-        <!-- Filters (Unchanged) -->
+        <!-- Filters -->
         <div class="raw-events-filters">
              <div class="filter-group">
                  <label for="filterEventType">Filter by Type:</label>
@@ -98,24 +118,41 @@
                  <label for="filterKeyword">Search:</label>
                  <input type="search" id="filterKeyword" placeholder="General keyword...">
              </div>
-             <div class="filter-group">
-                 <label for="filterLinkType">Link Type:</label>
-                 <select id="filterLinkType">
-                     <option value="">All Link Types</option>
-                 </select>
-             </div>
+              <!-- Filter for Link Click Destinations (Internal/External/Anchor) -->
               <div class="filter-group">
-                 <label for="filterModalType">Modal Type/ID:</label>
-                 <select id="filterModalType">
-                     <option value="">All Modal Types/IDs</option>
+                 <label for="filterLinkType">Link Dest. Type:</label> <!-- Renamed label -->
+                 <select id="filterLinkType">
+                     <option value="">All Link Dest. Types</option>
+                     <option value="internal">Internal</option>
+                     <option value="external">External</option>
+                     <option value="anchor">Anchor</option>
+                     <option value="nohref">No Href</option>
                  </select>
              </div>
+              <!-- Filter for Modal ID/Type -->
+              <div class="filter-group">
+                 <label for="filterModalType">Modal ID/Type:</label> <!-- Clarified label -->
+                 <select id="filterModalType">
+                     <option value="">All Modal IDs/Types</option>
+                 </select>
+             </div>
+             <!-- Filter for Project ID -->
              <div class="filter-group">
                  <label for="filterProjectId">Project ID/Context:</label>
                  <input type="search" id="filterProjectId" placeholder="Project keyword...">
              </div>
+             <!-- Optional Filter for Detailed Link Type (e.g., social, github) -->
+             <!-- If you uncomment this, make sure filterDetailLinkTypeSelect exists in dashboard.js DOM elements -->
+             <!--
+             <div class="filter-group">
+                 <label for="filterDetailLinkType">Link Detail Type:</label>
+                 <select id="filterDetailLinkType">
+                     <option value="">All Link Detail Types</option>
+                 </select>
+             </div>
+             -->
         </div>
-        <!-- Table Wrapper & Table (Unchanged) -->
+        <!-- Table Wrapper & Table -->
         <div class="table-wrapper">
             <table id="rawEventsTable">
                 <thead>
@@ -128,20 +165,28 @@
                 </thead>
                 <tbody>
                     <!-- Data rows will be inserted here -->
+                    <!-- Initial message before fetching -->
+                     <tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--secondary-text);">Click 'Fetch Data' to load events.</td></tr>
                 </tbody>
             </table>
         </div>
     </details>
 
-    <!-- Scroll to Top Button (Unchanged) -->
+    <!-- Scroll to Top Button -->
     <button id="scrollToTopBtn" title="Go to top">↑</button>
 
-    <!-- *** ADD Leaflet JS (Before dashboard.js) *** -->
+    <!-- *** Leaflet JS (Must come BEFORE markercluster) *** -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
      crossorigin=""></script>
+
+    <!-- *** START: Added Leaflet.markercluster JS (Must come AFTER Leaflet) *** -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <!-- *** END: Added Leaflet.markercluster JS *** -->
 
     <!-- Your Dashboard Script -->
     <script src="dashboard.js"></script>
 </body>
 </html>
+
+--- END OF FILE index.html (Dashboard - Updated for Improvements) ---
