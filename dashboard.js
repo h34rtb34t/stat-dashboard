@@ -1,4 +1,4 @@
-// --- START OF FILE dashboard.js (FOR DASHBOARD - Updated for Improvements) ---
+// --- START OF FILE dashboard.js (FOR DASHBOARD - With Diagnostics) ---
 
 // --- Configuration ---
 const RETRIEVAL_WORKER_URL = 'https://patient-mode-9cfb.azelbane87.workers.dev/'; // <-- YOUR DASHBOARD RETRIEVAL URL IS HERE
@@ -16,13 +16,13 @@ const CHART_COLORS_FALLBACK = [
 const fetchDataBtn = document.getElementById('fetchDataBtn');
 const secretTokenInput = document.getElementById('secretToken');
 const statusEl = document.getElementById('status');
-const loadingSpinner = document.getElementById('loadingSpinner'); // New
-const autoRefreshCheckbox = document.getElementById('autoRefreshCheckbox'); // New
+const loadingSpinner = document.getElementById('loadingSpinner');
+const autoRefreshCheckbox = document.getElementById('autoRefreshCheckbox');
 const rawEventsTbody = document.querySelector('#rawEventsTable tbody');
 const totalViewsEl = document.querySelector('#totalViewsBox .value');
 const uniqueDaysEl = document.querySelector('#uniqueDaysBox .value');
-const topCountryEl = document.querySelector('#topCountryBox .value'); // New
-const topReferrerEl = document.querySelector('#topReferrerBox .value'); // New
+const topCountryEl = document.querySelector('#topCountryBox .value');
+const topReferrerEl = document.querySelector('#topReferrerBox .value');
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 const scrollToTopBtn = document.getElementById("scrollToTopBtn");
 // Filter Elements
@@ -57,9 +57,74 @@ function debounce(func, delay) {
     };
 }
 
-// --- Theme Handling --- (Keep existing - unchanged)
-function applyTheme(theme) { /* ... keep existing logic ... */ }
-function toggleTheme() { /* ... keep existing logic ... */ }
+// --- Theme Handling (With Diagnostics) ---
+function applyTheme(theme) {
+    console.log(`applyTheme CALLED with theme: ${theme}`); // <<< DIAGNOSTIC LOG
+    const isDark = theme === 'dark';
+    console.log(` - Setting dark theme class: ${isDark}`); // <<< DIAGNOSTIC LOG
+    document.body.classList.toggle('dark-theme', isDark);
+    themeToggleBtn.textContent = isDark ? '☀️' : '🌙';
+    themeToggleBtn.title = isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme';
+
+    // Set Chart.js global defaults based on theme
+    Chart.defaults.color = isDark ? '#e0e0e0' : '#555';
+    Chart.defaults.borderColor = isDark ? '#444' : '#e1e4e8';
+
+    // Update existing charts to reflect theme changes
+    Object.values(chartInstances).forEach(chart => {
+        if (chart) {
+            try {
+                if(chart.options.scales?.x) {
+                    chart.options.scales.x.grid.color = Chart.defaults.borderColor;
+                    chart.options.scales.x.ticks.color = Chart.defaults.color;
+                }
+                if(chart.options.scales?.y) {
+                    chart.options.scales.y.grid.color = Chart.defaults.borderColor;
+                    chart.options.scales.y.ticks.color = Chart.defaults.color;
+                }
+                if(chart.options.scales?.r) {
+                     chart.options.scales.r.grid.color = Chart.defaults.borderColor;
+                     chart.options.scales.r.angleLines.color = Chart.defaults.borderColor;
+                     chart.options.scales.r.pointLabels.color = Chart.defaults.color;
+                     chart.options.scales.r.ticks.color = Chart.defaults.color;
+                     chart.options.scales.r.ticks.backdropColor = isDark ? '#2c2c2c' : '#ffffff';
+                }
+                if (chart.options.plugins.legend) {
+                     chart.options.plugins.legend.labels.color = Chart.defaults.color;
+                }
+                 if (chart.options.plugins.title) {
+                     chart.options.plugins.title.color = Chart.defaults.color;
+                 }
+                chart.update('none');
+            } catch (chartUpdateError) {
+                console.error("Error updating chart theme:", chartUpdateError, chart.canvas.id);
+            }
+        }
+    });
+
+    // Switch Map Tile Layers
+    if (mapInstance && lightTileLayer && darkTileLayer) {
+        console.log(`Applying theme: ${theme}. Switching map tiles.`);
+        try {
+            if (isDark) {
+                if (mapInstance.hasLayer(lightTileLayer)) { mapInstance.removeLayer(lightTileLayer); console.log("Removed light tile layer."); }
+                if (!mapInstance.hasLayer(darkTileLayer)) { mapInstance.addLayer(darkTileLayer); console.log("Added dark tile layer."); }
+            } else {
+                if (mapInstance.hasLayer(darkTileLayer)) { mapInstance.removeLayer(darkTileLayer); console.log("Removed dark tile layer."); }
+                if (!mapInstance.hasLayer(lightTileLayer)) { mapInstance.addLayer(lightTileLayer); console.log("Added light tile layer."); }
+            }
+        } catch (mapLayerError) { console.error("Error switching map tile layers:", mapLayerError); }
+    } else { console.log("Map or tile layers not ready for theme switch yet."); }
+}
+
+function toggleTheme() {
+    console.log("toggleTheme CALLED"); // <<< DIAGNOSTIC LOG
+    const currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    console.log(` - Current: ${currentTheme}, New: ${newTheme}`); // <<< DIAGNOSTIC LOG
+    localStorage.setItem('dashboardTheme', newTheme);
+    applyTheme(newTheme);
+}
 
 // --- Scroll to Top Logic --- (Keep existing - unchanged)
 function handleScroll() { /* ... keep existing logic ... */ }
@@ -69,7 +134,6 @@ function goToTop() { /* ... keep existing logic ... */ }
 function initializeMap() {
     if (mapInstance) return;
     try {
-        // Check for Leaflet AND MarkerCluster
         if (typeof L === 'undefined' || typeof L.markerClusterGroup === 'undefined') {
              console.error("Leaflet or Leaflet.markercluster library not found.");
              statusEl.textContent = "Error: Map library or plugin not loaded.";
@@ -77,44 +141,27 @@ function initializeMap() {
         }
         const mapContainer = document.getElementById('locationMap');
         if (!mapContainer) { console.error("Map container element '#locationMap' not found."); return; }
-
         mapInstance = L.map('locationMap').setView([20, 0], 2);
         lightTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors' });
         darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© <a href="https://osm.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>', subdomains: 'abcd', maxZoom: 19 });
-
         const initialThemeIsDark = document.body.classList.contains('dark-theme');
         if (initialThemeIsDark) { darkTileLayer.addTo(mapInstance); } else { lightTileLayer.addTo(mapInstance); }
-
-        // *** Use MarkerClusterGroup ***
-        markerLayerGroup = L.markerClusterGroup({
-             // Optional MarkerCluster options:
-             maxClusterRadius: 60, // Default 80
-             // spiderfyOnMaxZoom: true, // Default true
-             // showCoverageOnHover: true, // Default true
-             // zoomToBoundsOnClick: true // Default true
-        });
-        markerLayerGroup.addTo(mapInstance); // Add the cluster group to the map
+        markerLayerGroup = L.markerClusterGroup(); // Use MarkerClusterGroup
+        markerLayerGroup.addTo(mapInstance);
         console.log("Map initialized successfully with MarkerCluster.");
-
-    } catch (error) {
-        console.error("Error initializing map:", error);
-        statusEl.textContent = "Error initializing map.";
-        mapInstance = null; lightTileLayer = null; darkTileLayer = null; markerLayerGroup = null;
-    }
+    } catch (error) { console.error("Error initializing map:", error); statusEl.textContent = "Error initializing map."; mapInstance = null; lightTileLayer = null; darkTileLayer = null; markerLayerGroup = null; }
 }
 
 // --- Map Rendering (Updated for MarkerCluster) ---
 function renderLocationMap(events) {
-    if (!mapInstance || !markerLayerGroup) { console.warn("Map or marker group not initialized/ready for rendering."); initializeMap(); return; } // Try initializing if needed
-    markerLayerGroup.clearLayers(); // Clear layers from the cluster group
+    if (!mapInstance || !markerLayerGroup) { console.warn("Map or marker group not initialized/ready for rendering."); initializeMap(); return; }
+    markerLayerGroup.clearLayers();
     let locationsAdded = 0;
-
     [...events].reverse().forEach(event => {
         if (event.location?.latitude != null && event.location?.longitude != null && !isNaN(parseFloat(event.location.latitude)) && !isNaN(parseFloat(event.location.longitude))) {
             const lat = parseFloat(event.location.latitude);
             const lon = parseFloat(event.location.longitude);
             if (lat === 0 && lon === 0 && event.location.ip !== '127.0.0.1') { console.log("Skipping potential invalid 0,0 coords for event:", event.type, event.location.ip); return; }
-
              const page = event.page || 'N/A';
              const type = event.type || 'N/A';
              const projectId = event.projectId || event.details?.projectId || event.details?.context || 'N/A';
@@ -123,7 +170,6 @@ function renderLocationMap(events) {
              const region = event.location.regionCode || event.location.region || '?';
              const country = event.location.country || '?';
              const ipInfo = `${event.location.ip || '?'} (${event.location.asOrganization || '?'})`;
-
              const popupContent = `
                 <b>Time:</b> ${timestamp}<br>
                 <b>Type:</b> ${type}<br>
@@ -132,11 +178,9 @@ function renderLocationMap(events) {
                 <b>Location:</b> ${city}, ${region}, ${country}<br>
                 <b>IP Info:</b> ${ipInfo}
              `;
-
             try {
                 const marker = L.marker([lat, lon]).bindPopup(popupContent);
-                // *** Add marker to the ClusterGroup instead of directly to map ***
-                markerLayerGroup.addLayer(marker);
+                markerLayerGroup.addLayer(marker); // Add to ClusterGroup
                 locationsAdded++;
             }
             catch (markerError) { console.error(`Error adding marker for event: Lat=${lat}, Lon=${lon}`, markerError, event); }
@@ -147,15 +191,11 @@ function renderLocationMap(events) {
 
 // Apply saved theme and set up listeners on load
 document.addEventListener('DOMContentLoaded', () => {
-    initializeMap(); // Initialize map FIRST
+    initializeMap();
     const savedTheme = localStorage.getItem('dashboardTheme') || 'light';
-    applyTheme(savedTheme); // Apply initial theme AFTER map structure is ready
-
-    // Pre-fill auth token if saved
+    applyTheme(savedTheme);
     secretTokenInput.value = localStorage.getItem('dashboardAuthToken') || '';
-    // Set initial table message
     rawEventsTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--secondary-text);">Click \'Fetch Data\' to load events.</td></tr>';
-
 
     // Event Listeners
     fetchDataBtn.addEventListener('click', fetchData);
@@ -167,24 +207,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Filters - Apply debounce to text inputs
     const debouncedFilter = debounce(applyFiltersAndDisplayEvents, DEBOUNCE_DELAY);
     filterEventTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-    filterKeywordInput.addEventListener('input', debouncedFilter); // Debounced
+    filterKeywordInput.addEventListener('input', debouncedFilter);
     if(filterLinkTypeSelect) filterLinkTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
     filterModalTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-    filterProjectIdInput.addEventListener('input', debouncedFilter); // Debounced
+    filterProjectIdInput.addEventListener('input', debouncedFilter);
     // if(filterDetailLinkTypeSelect) filterDetailLinkTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
 
     // Auto-Refresh Listener
     autoRefreshCheckbox.addEventListener('change', handleAutoRefreshToggle);
 
-    handleScroll(); // Initial check for scroll button
+    handleScroll();
     console.log("DOM Content Loaded, event listeners attached.");
 });
 
 // --- Auto-Refresh Handler ---
 function handleAutoRefreshToggle() {
     if (autoRefreshCheckbox.checked) {
-        if (refreshIntervalId === null) { // Prevent multiple intervals
-             // Fetch immediately when checked, then start interval
+        if (refreshIntervalId === null) {
              fetchData();
              refreshIntervalId = setInterval(fetchData, REFRESH_INTERVAL);
              console.log(`Auto-refresh started (Interval ID: ${refreshIntervalId})`);
@@ -202,46 +241,27 @@ function handleAutoRefreshToggle() {
 // --- Core Fetch Function (Updated for Spinner, Status, Token Save) ---
 async function fetchData() {
     console.log("fetchData function CALLED!");
-
-    // Prevent fetch if already fetching (relevant for auto-refresh)
-    if (fetchDataBtn.disabled && !autoRefreshCheckbox.checked) { // Allow auto-refresh even if button disabled briefly
+    if (fetchDataBtn.disabled && !autoRefreshCheckbox.checked) {
         console.log("fetchData: Fetch already in progress, skipping.");
         return;
     }
-
     const secretToken = secretTokenInput.value.trim();
-    if (!secretToken) {
-        statusEl.textContent = 'Please enter the Auth Token.';
-        console.log("fetchData: Exiting - No secret token.");
-        return;
+    if (!secretToken) { statusEl.textContent = 'Please enter the Auth Token.'; return; }
+    if (!RETRIEVAL_WORKER_URL || RETRIEVAL_WORKER_URL.includes('REPLACE') || RETRIEVAL_WORKER_URL.length < 20) {
+        statusEl.textContent = 'ERROR: RETRIEVAL_WORKER_URL seems invalid.'; return;
     }
-    console.log("fetchData: Secret token found.");
 
-     if (!RETRIEVAL_WORKER_URL || RETRIEVAL_WORKER_URL.includes('REPLACE') || RETRIEVAL_WORKER_URL.length < 20) {
-         statusEl.textContent = 'ERROR: RETRIEVAL_WORKER_URL seems invalid or not configured in dashboard.js.';
-         console.error('ERROR: Invalid RETRIEVAL_WORKER_URL detected:', RETRIEVAL_WORKER_URL);
-         return; // Exit early
-     }
-     console.log("fetchData: RETRIEVAL_WORKER_URL seems valid:", RETRIEVAL_WORKER_URL);
-
-    // --- Start Loading State ---
     statusEl.textContent = 'Fetching data...';
-    loadingSpinner.style.display = 'inline-block'; // Show spinner
+    loadingSpinner.style.display = 'inline-block';
     fetchDataBtn.disabled = true;
     console.log("fetchData: Disabling button, showing spinner.");
 
-    console.log("fetchData: Clearing UI elements (table, summary, charts, map).");
-    rawEventsTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Loading...</td></tr>'; // Update table message
+    rawEventsTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Loading...</td></tr>';
     resetSummary();
     destroyCharts();
-
-    // Clear map markers (using cluster group method)
-    if (markerLayerGroup) { markerLayerGroup.clearLayers(); console.log("fetchData: Cleared map markers."); }
-    else { console.log("fetchData: Map layer group not ready for clearing (fetch)."); initializeMap(); }
+    if (markerLayerGroup) { markerLayerGroup.clearLayers(); } else { initializeMap(); }
 
     currentRawEvents = [];
-    // Don't reset filters here, allow user selection to persist between fetches
-    // resetFilters();
     console.log("fetchData: UI cleared, preparing to fetch.");
 
     try {
@@ -251,61 +271,45 @@ async function fetchData() {
         });
         console.log("fetchData: Fetch call completed. Status:", response.status);
 
-        if (response.status === 401) throw new Error('Unauthorized. Check Auth Token.');
-        if (response.status === 403) throw new Error('Forbidden. Check Worker CORS configuration for dashboard URL.');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
 
-        statusEl.textContent = 'Processing data...'; // Update status
-        console.log("fetchData: Response OK, attempting to parse JSON...");
+        statusEl.textContent = 'Processing data...';
         const rawEvents = await response.json();
-        console.log("fetchData: JSON parsed successfully.");
-
         if (!Array.isArray(rawEvents)) { throw new Error('Received invalid data format from worker.'); }
 
         statusEl.textContent = `Fetched ${rawEvents.length} recent events. Processing...`;
         console.log(`fetchData: Fetched ${rawEvents.length} events.`);
-        currentRawEvents = rawEvents; // Store fetched events
-
-        // *** Save token on successful fetch ***
+        currentRawEvents = rawEvents;
         localStorage.setItem('dashboardAuthToken', secretToken);
         console.log("fetchData: Auth token saved to localStorage.");
 
         statusEl.textContent = 'Populating filters...';
-        console.log("fetchData: Populating filters...");
-        // Re-populate filters only if needed (e.g., if options could change)
-        // If options are stable, maybe only populate on first load? For now, populate each time.
-        resetFilters(); // Reset dropdowns before populating
+        resetFilters();
         populateEventTypeFilter(currentRawEvents);
         populateModalTypeFilter(currentRawEvents);
-        // populateDetailLinkTypeFilter(currentRawEvents); // Uncomment if using this filter
+        // populateDetailLinkTypeFilter(currentRawEvents);
 
         statusEl.textContent = 'Rendering charts...';
-        console.log("fetchData: Rendering charts...");
-        renderCharts(currentRawEvents);
+        renderCharts(currentRawEvents); // <<< THIS CALLS THE FUNCTION WITH LOGS
 
         statusEl.textContent = 'Rendering table...';
-        console.log("fetchData: Applying filters and displaying table...");
-        applyFiltersAndDisplayEvents(); // Display table with filters applied
+        applyFiltersAndDisplayEvents();
 
         statusEl.textContent = 'Calculating summary...';
-        console.log("fetchData: Calculating summary...");
-        calculateAndDisplaySummary(currentRawEvents); // Includes new summary boxes
+        calculateAndDisplaySummary(currentRawEvents);
 
         statusEl.textContent = 'Rendering map...';
-        console.log("fetchData: Rendering map...");
         renderLocationMap(currentRawEvents);
 
-        statusEl.textContent = `Displayed ${currentRawEvents.length} fetched events.`; // Final success message
+        statusEl.textContent = `Displayed ${currentRawEvents.length} fetched events.`;
         console.log("fetchData: Processing complete.");
 
     } catch (error) {
         console.error('fetchData: Error during fetch or processing:', error);
-        statusEl.textContent = `Error: ${error.message}`; // Display specific error
+        statusEl.textContent = `Error: ${error.message}`;
         rawEventsTbody.innerHTML = `<tr><td colspan="4" style="color: red; text-align:center;">Error: ${error.message}</td></tr>`;
-        // Clear charts and map on error
         destroyCharts();
         if(markerLayerGroup) markerLayerGroup.clearLayers();
-        // Display error messages on charts
         handleEmptyChart('pageViewsChart', 'Error fetching data');
         handleEmptyChart('projectInteractionsChart', 'Error fetching data');
         handleEmptyChart('linkTypesChart', 'Error fetching data');
@@ -313,16 +317,11 @@ async function fetchData() {
         handleEmptyChart('modalOpensChart', 'Error fetching data');
         handleEmptyChart('eventTypesChart', 'Error fetching data');
         handleEmptyChart('screenWidthChart', 'Error fetching data');
-         // Clear new summary boxes on error too
          if(topCountryEl) topCountryEl.textContent = 'Error';
          if(topReferrerEl) topReferrerEl.textContent = 'Error';
-
     } finally {
-         // --- End Loading State ---
-         loadingSpinner.style.display = 'none'; // Hide spinner
-         fetchDataBtn.disabled = false; // Re-enable button
-         // Don't clear status immediately, leave success/error message visible briefly
-         // setTimeout(() => { if (statusEl.textContent.startsWith('Displayed') || statusEl.textContent.startsWith('Error')) statusEl.textContent = ''; }, 5000);
+         loadingSpinner.style.display = 'none';
+         fetchDataBtn.disabled = false;
          console.log("fetchData: Re-enabling button, hiding spinner in finally block.");
          console.log("fetchData: Function finished.");
     }
@@ -331,23 +330,79 @@ async function fetchData() {
 
 // --- Helper Functions ---
 function resetSummary() {
-    totalViewsEl.textContent = '--';
-    uniqueDaysEl.textContent = '--';
-    if(topCountryEl) topCountryEl.textContent = '--'; // Reset new boxes
-    if(topReferrerEl) topReferrerEl.textContent = '--';
+    totalViewsEl.textContent = '--'; uniqueDaysEl.textContent = '--';
+    if(topCountryEl) topCountryEl.textContent = '--'; if(topReferrerEl) topReferrerEl.textContent = '--';
 }
-function destroyCharts() { /* ... keep existing ... */ }
-function formatLabel(key) { /* ... keep existing ... */ }
+function destroyCharts() { Object.values(chartInstances).forEach(chart => { if (chart) chart.destroy(); }); chartInstances = {}; }
+function formatLabel(key) {
+       if (!key) return 'Unknown';
+       return String(key).replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ').replace(/\b\w/g, char => char.toUpperCase()).replace(/ +/g, ' ').trim();
+}
 
 
 // --- Filter Functions ---
-function resetFilters() { /* ... keep existing ... */ }
-function populateEventTypeFilter(events) { /* ... keep existing ... */ }
-function populateModalTypeFilter(events) { /* ... keep existing ... */ }
+function resetFilters() {
+    if(filterEventTypeSelect) filterEventTypeSelect.innerHTML = '<option value="">All Types</option>';
+    if(filterKeywordInput) filterKeywordInput.value = '';
+    if(filterLinkTypeSelect) filterLinkTypeSelect.innerHTML = '<option value="">All Link Types</option>';
+    if(filterModalTypeSelect) filterModalTypeSelect.innerHTML = '<option value="">All Modal IDs/Types</option>';
+    if(filterProjectIdInput) filterProjectIdInput.value = '';
+    // if(filterDetailLinkTypeSelect) filterDetailLinkTypeSelect.innerHTML = '<option value="">All Link Detail Types</option>';
+ }
+
+ function populateEventTypeFilter(events) {
+    if(!filterEventTypeSelect) return;
+    const types = new Set(events.map(e => e.type || 'Unknown').filter(t => t));
+    filterEventTypeSelect.innerHTML = '<option value="">All Types</option>';
+    [...types].sort().forEach(type => { const option = document.createElement('option'); option.value = type; option.textContent = formatLabel(type); filterEventTypeSelect.appendChild(option); });
+}
+
+ function populateModalTypeFilter(events) {
+    if(!filterModalTypeSelect) return;
+    const modalIds = new Set();
+    events.filter(e => e.type === 'modal_open').forEach(e => {
+        if (e.details?.modalId) modalIds.add(e.details.modalId);
+        else if (e.modalId || e.modalType) modalIds.add(e.modalId || e.modalType);
+    });
+    filterModalTypeSelect.innerHTML = '<option value="">All Modal IDs/Types</option>';
+    [...modalIds].sort().forEach(id => { if(id){ const option = document.createElement('option'); option.value = id; option.textContent = formatLabel(id); filterModalTypeSelect.appendChild(option); } });
+}
+
 // function populateDetailLinkTypeFilter(events) { /* ... keep existing, uncomment if needed ... */ }
 
 // --- Apply Filters (No changes needed for debounce, handled in listener) ---
-function applyFiltersAndDisplayEvents() { /* ... keep existing logic ... */ }
+function applyFiltersAndDisplayEvents() {
+    const selectedEventType = filterEventTypeSelect?.value || '';
+    const keyword = filterKeywordInput?.value.trim().toLowerCase() || '';
+    const selectedModalId = filterModalTypeSelect?.value || '';
+    const projectIdKeyword = filterProjectIdInput?.value.trim().toLowerCase() || '';
+    const selectedLinkType = filterLinkTypeSelect?.value || ''; // Use the Dest. Type filter
+
+    const sortedEvents = [...currentRawEvents].sort((a, b) => new Date(b.receivedAt || 0) - new Date(a.receivedAt || 0));
+
+    const filteredEvents = sortedEvents.filter(event => {
+        if (selectedEventType && (event.type || 'Unknown') !== selectedEventType) return false;
+        if (selectedModalId && !( (event.type === 'modal_open' && event.details?.modalId === selectedModalId) || (event.type === 'modal_open' && !event.details?.modalId && (event.modalId === selectedModalId || event.modalType === selectedModalId)) )) return false;
+        // Filter by Link Destination Type (internal/external/anchor) using details.linkType
+        if (selectedLinkType && !(event.details?.linkType === selectedLinkType)) return false;
+        const projId = event.projectId || event.details?.projectId || event.details?.context || event.details?.trackId || '';
+        if (projectIdKeyword && !String(projId).toLowerCase().includes(projectIdKeyword)) return false;
+        if (keyword) {
+             const timestampStr = event.receivedAt ? new Date(event.receivedAt).toLocaleString().toLowerCase() : '';
+             const typeStr = (event.type || '').toLowerCase();
+             const pageStr = (event.page || '').toLowerCase();
+             let searchString = `${timestampStr} ${typeStr} ${pageStr}`;
+             try {
+                 if(event.details && Object.keys(event.details).length > 0) { searchString += ` ${JSON.stringify(event.details).toLowerCase()}`; }
+                 if(event.location) { searchString += ` ${event.location.city || ''} ${event.location.regionCode || ''} ${event.location.country || ''} ${event.location.ip || ''} ${event.location.asOrganization || ''}`.toLowerCase(); }
+             } catch (e) { /* ignore */ }
+             if (!searchString.includes(keyword)) return false;
+        }
+        return true;
+    });
+    renderTableBody(filteredEvents);
+}
+
 
 // --- Render Table Body (No changes needed) ---
 function renderTableBody(events) { /* ... keep existing logic ... */ }
@@ -355,65 +410,146 @@ function renderTableBody(events) { /* ... keep existing logic ... */ }
 
 // --- calculateAndDisplaySummary (Updated for New Boxes) ---
 function calculateAndDisplaySummary(events) {
-    // Total Views & Unique Days (Existing)
      const pageViews = events.filter(e => e.type === 'pageview');
      totalViewsEl.textContent = pageViews.length;
-     const uniqueDays = new Set(pageViews.map(e => { /* ... date parsing ... */ }).filter(d => d !== null));
+     const uniqueDays = new Set(pageViews.map(e => { try { const dateStr = e.receivedAt || e.timestamp; if (!dateStr) return null; return new Date(dateStr).toLocaleDateString(); } catch (err) { return null; } }).filter(d => d !== null));
      uniqueDaysEl.textContent = uniqueDays.size;
-
-     // *** START: Calculate Top Country ***
      if (topCountryEl) {
-         const countries = events
-            .filter(e => e.location?.country) // Filter events with country data
-            .reduce((acc, e) => {
-                const country = e.location.country;
-                acc[country] = (acc[country] || 0) + 1;
-                return acc;
-            }, {});
+         const countries = events.filter(e => e.location?.country).reduce((acc, e) => { const country = e.location.country; acc[country] = (acc[country] || 0) + 1; return acc; }, {});
          const sortedCountries = Object.entries(countries).sort(([, countA], [, countB]) => countB - countA);
-         topCountryEl.textContent = sortedCountries.length > 0 ? `${sortedCountries[0][0]} (${sortedCountries[0][1]})` : '--'; // Show top country and count
+         topCountryEl.textContent = sortedCountries.length > 0 ? `${sortedCountries[0][0]} (${sortedCountries[0][1]})` : '--';
      }
-     // *** END: Calculate Top Country ***
-
-     // *** START: Calculate Top Referrer ***
       if (topReferrerEl) {
-          const referrers = events
-             .filter(e => e.referrer && !e.referrer.includes(window.location.hostname) && !e.referrer.startsWith('android-app://') && !e.referrer.startsWith('ios-app://') && e.referrer !== '(direct)') // Filter valid, external referrers
-             .reduce((acc, e) => {
-                 try {
-                     const url = new URL(e.referrer);
-                     // Use hostname, remove 'www.' if present for cleaner grouping
-                     const domain = url.hostname.replace(/^www\./, '');
-                     acc[domain] = (acc[domain] || 0) + 1;
-                 } catch (err) {
-                      // console.warn("Could not parse referrer URL:", e.referrer);
-                      acc['(Invalid/Other)'] = (acc['(Invalid/Other)'] || 0) + 1;
-                 }
-                 return acc;
-             }, {});
+          const referrers = events.filter(e => e.referrer && !e.referrer.includes(window.location.hostname) && !e.referrer.startsWith('android-app://') && !e.referrer.startsWith('ios-app://') && e.referrer !== '(direct)').reduce((acc, e) => { try { const url = new URL(e.referrer); const domain = url.hostname.replace(/^www\./, ''); acc[domain] = (acc[domain] || 0) + 1; } catch (err) { acc['(Invalid/Other)'] = (acc['(Invalid/Other)'] || 0) + 1; } return acc; }, {});
           const sortedReferrers = Object.entries(referrers).sort(([, countA], [, countB]) => countB - countA);
-          topReferrerEl.textContent = sortedReferrers.length > 0 ? `${sortedReferrers[0][0]} (${sortedReferrers[0][1]})` : '--';
-          // Add title attribute for full domain if truncated
-          if (sortedReferrers.length > 0 && sortedReferrers[0][0].length > 20) {
-             topReferrerEl.title = sortedReferrers[0][0];
-             topReferrerEl.textContent = `${sortedReferrers[0][0].substring(0, 17)}... (${sortedReferrers[0][1]})`;
-          } else if (sortedReferrers.length > 0) {
-               topReferrerEl.title = sortedReferrers[0][0];
+          if (sortedReferrers.length > 0) {
+             const topRef = sortedReferrers[0][0];
+             const topRefCount = sortedReferrers[0][1];
+             topReferrerEl.textContent = topRef.length > 20 ? `${topRef.substring(0, 17)}... (${topRefCount})` : `${topRef} (${topRefCount})`;
+             topReferrerEl.title = topRef; // Show full domain on hover
+          } else {
+              topReferrerEl.textContent = '--';
+              topReferrerEl.title = '';
           }
       }
-     // *** END: Calculate Top Referrer ***
 }
 
 // --- aggregateData --- (Keep existing - unchanged)
 function aggregateData(events, filterCondition, keyExtractor, labelExtractor = formatLabel, limit = 10) { /* ... keep existing ... */ }
 
-// --- renderCharts --- (Keep existing - unchanged)
-function renderCharts(events) { /* ... keep existing logic ... */ }
+
+// --- renderCharts (With Diagnostics) ---
+function renderCharts(events) {
+    console.log("--- Starting renderCharts (With Diagnostics) ---");
+    const colors = CHART_COLORS_FALLBACK;
+
+    try {
+        // 1. Page Views Over Time
+        console.log("Processing Chart 1: Page Views Over Time");
+        const viewsByDate = events.filter(e => e.type === 'pageview' && (e.receivedAt || e.timestamp)).reduce((acc, event) => { try { const date = new Date(event.receivedAt || event.timestamp).toISOString().split('T')[0]; acc[date] = (acc[date] || 0) + 1; } catch(e) {} return acc; }, {});
+        const sortedDates = Object.keys(viewsByDate).sort();
+        const pageViewData = sortedDates.map(date => viewsByDate[date]);
+        console.log(">>> Page Views - Dates:", sortedDates.length, "Data Points:", pageViewData.length); // <<< DIAGNOSTIC LOG
+        if (sortedDates.length > 0) { renderChart('pageViewsChart', 'line', { labels: sortedDates, datasets: [{ label: 'Page Views', data: pageViewData, borderColor: colors[0], backgroundColor: colors[0].replace('0.7', '0.2'), tension: 0.1, fill: true }] }, { scales: { x: { type: 'time', time: { unit: 'day', tooltipFormat: 'PP' } }, y: { beginAtZero: true, suggestedMax: Math.max(5, ...pageViewData) + 3, ticks: { precision: 0 } } } }); }
+        else { handleEmptyChart('pageViewsChart', 'No page view data.'); }
+        console.log("Finished Chart 1");
+
+        // 2. Project Interactions
+        console.log("Processing Chart 2: Project Interactions");
+        const projectAggData = aggregateData( events, e => e.projectId || e.details?.projectId || e.details?.context || e.details?.trackId, e => e.projectId || e.details?.projectId || e.details?.trackId || e.details?.context || 'Unknown Project', formatLabel, 10 );
+        console.log(">>> Project Interactions - Aggregated Data:", JSON.stringify(projectAggData)); // <<< DIAGNOSTIC LOG
+        if (projectAggData.labels.length > 0) { renderChart('projectInteractionsChart', 'bar', { labels: projectAggData.labels, datasets: [{ label: 'Interactions', data: projectAggData.data, backgroundColor: colors[1] }] }, { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { precision: 0 }}}}); }
+        else { handleEmptyChart('projectInteractionsChart', 'No project interaction data.'); }
+        console.log("Finished Chart 2");
+
+        // 3. Link Click Destinations
+        console.log("Processing Chart 3: Link Click Destinations");
+        const linkDestAggData = aggregateData( events, e => (e.type === 'link_click' || e.type === 'anchor_click') && e.details?.linkType, e => e.details.linkType, formatLabel, 10 );
+        console.log(">>> Link Destinations - Aggregated Data:", JSON.stringify(linkDestAggData)); // <<< DIAGNOSTIC LOG
+         if (linkDestAggData.labels.length > 0) { renderChart('linkTypesChart', 'doughnut', { labels: linkDestAggData.labels, datasets: [{ label: 'Link Types', data: linkDestAggData.data, backgroundColor: colors.slice(2), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); }
+         else { handleEmptyChart('linkTypesChart', 'No link click data.'); }
+        console.log("Finished Chart 3");
+
+         // 4. Interaction Click Types
+         console.log("Processing Chart 4: Interaction Click Types");
+         const clickTypesAggData = aggregateData( events, e => ['link_click', 'anchor_click', 'button_click', 'project_click', 'generic_click', 'publication_click', 'project_card_area_click', 'tracked_element_click'].includes(e.type), e => e.type, formatLabel, 10 );
+         console.log(">>> Click Types - Aggregated Data:", JSON.stringify(clickTypesAggData)); // <<< DIAGNOSTIC LOG
+          if (clickTypesAggData.labels.length > 0) { renderChart('clickTypesChart', 'pie', { labels: clickTypesAggData.labels, datasets: [{ label: 'Click Types', data: clickTypesAggData.data, backgroundColor: colors.slice(3), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); }
+          else { handleEmptyChart('clickTypesChart', 'No click type data.'); }
+         console.log("Finished Chart 4");
+
+        // 5. Modal Opens
+        console.log("Processing Chart 5: Modal Opens");
+        const modalAggData = aggregateData( events, e => e.type === 'modal_open' && (e.details?.modalId || e.modalId || e.modalType), e => e.details?.modalId || e.modalId || e.modalType, formatLabel, 10 );
+        console.log(">>> Modal Opens - Aggregated Data:", JSON.stringify(modalAggData)); // <<< DIAGNOSTIC LOG
+        if (modalAggData.labels.length > 0) { renderChart('modalOpensChart', 'pie', { labels: modalAggData.labels, datasets: [{ label: 'Modal Opens', data: modalAggData.data, backgroundColor: colors.slice(1).reverse(), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); }
+        else { handleEmptyChart('modalOpensChart', 'No modal open data.'); }
+        console.log("Finished Chart 5");
+
+        // 6. Event Types Distribution
+        console.log("Processing Chart 6: Event Types Distribution");
+        const eventTypeAggData = aggregateData( events, e => true, event => event.type || 'Unknown Type', formatLabel, 15 );
+        console.log(">>> Event Types - Aggregated Data:", JSON.stringify(eventTypeAggData)); // <<< DIAGNOSTIC LOG
+         if (eventTypeAggData.labels.length > 0) { renderChart('eventTypesChart', 'bar', { labels: eventTypeAggData.labels, datasets: [{ label: 'Event Count', data: eventTypeAggData.data, backgroundColor: colors[4] }] }, { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { precision: 0 }}}}); }
+         else { handleEmptyChart('eventTypesChart', 'No event data available.'); }
+        console.log("Finished Chart 6");
+
+        // 7. Screen Width Distribution
+        console.log("Processing Chart 7: Screen Width Distribution");
+         const screenWidthAggData = aggregateData( events, event => event.screenWidth != null && !isNaN(parseInt(event.screenWidth, 10)) && parseInt(event.screenWidth, 10) > 0, event => { const width = parseInt(event.screenWidth, 10); if (width <= 480) return '<= 480px (Mobile)'; if (width <= 768) return '481-768px (Tablet)'; if (width <= 1024) return '769-1024px (Sm Laptop)'; if (width <= 1440) return '1025-1440px (Desktop)'; return '> 1440px (Lrg Desktop)'; }, null, 8 );
+         console.log(">>> Screen Width - Aggregated Data:", JSON.stringify(screenWidthAggData)); // <<< DIAGNOSTIC LOG
+         if (screenWidthAggData.labels.length > 0) { renderChart('screenWidthChart', 'doughnut', { labels: screenWidthAggData.labels, datasets: [{ label: 'Screen Widths', data: screenWidthAggData.data, backgroundColor: colors.slice(5), hoverOffset: 4 }] }, { plugins: { legend: { position: 'bottom' } } }); }
+         else { handleEmptyChart('screenWidthChart', 'No screen width data.'); }
+        console.log("Finished Chart 7");
+
+    } catch (renderChartsError) {
+        console.error("Error during renderCharts function execution:", renderChartsError);
+        statusEl.textContent = `Error rendering charts: ${renderChartsError.message}`;
+        // ... handle empty chart states ...
+    } finally {
+         console.log("--- Finished renderCharts (With Diagnostics) ---");
+    }
+}
 
 // --- handleEmptyChart --- (Keep existing - unchanged)
 function handleEmptyChart(canvasId, message) { /* ... keep existing ... */ }
 
-// --- renderChart --- (Keep existing - unchanged)
-function renderChart(canvasId, type, data, options = {}) { /* ... keep existing ... */ }
 
-// --- END OF FILE dashboard.js (FOR DASHBOARD - Updated for Improvements) ---
+// --- renderChart (With Diagnostics) ---
+function renderChart(canvasId, type, data, options = {}) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) { console.error(`Canvas element with ID "${canvasId}" not found.`); return; }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { console.error(`Failed to get 2D context for canvas "${canvasId}".`); return; }
+
+    const baseOptions = { plugins: { legend: { labels: {} }, tooltip: { bodyColor: Chart.defaults.color, titleColor: Chart.defaults.color, backgroundColor: document.body.classList.contains('dark-theme') ? 'rgba(44, 44, 44, 0.9)' : 'rgba(255, 255, 255, 0.9)', borderColor: Chart.defaults.borderColor, borderWidth: 1 } } };
+    function mergeDeep(target, source) { /* ... simple merge ... */ for(const key in source){if(source[key]instanceof Object && key in target && target[key]instanceof Object){if(!(source[key]instanceof Array)&&!(target[key]instanceof Array)){mergeDeep(target[key],source[key]);}else{target[key]=source[key];}}else{target[key]=source[key];}}return target; }
+    const defaultOptions = { responsive: true, maintainAspectRatio: false, animation: { duration: 400 } };
+    const mergedOptions = mergeDeep(mergeDeep({ ...defaultOptions }, baseOptions), options);
+
+    // <<< DIAGNOSTIC LOGS ADDED >>>
+    console.log(`Rendering chart: ${canvasId}`);
+    console.log(`  - Type: ${type}`);
+    // Safely access data properties
+    const labels = data?.labels ?? 'N/A';
+    const datasetData = data?.datasets?.[0]?.data ?? 'N/A';
+    console.log(`  - Data Labels Count:`, Array.isArray(labels) ? labels.length : labels);
+    console.log(`  - First Dataset Points Count:`, Array.isArray(datasetData) ? datasetData.length : datasetData);
+    try {
+      console.log(`  - Merged Options:`, JSON.stringify(mergedOptions, null, 2).substring(0, 500) + "..."); // Log truncated options
+    } catch { console.log("  - Merged Options: (Could not stringify)"); }
+    // <<< END DIAGNOSTIC LOGS >>>
+
+    if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
+
+    try {
+        chartInstances[canvasId] = new Chart(ctx, { type, data, options: mergedOptions });
+        console.log(`  - Chart instance CREATED for ${canvasId}`); // <<< DIAGNOSTIC LOG
+    }
+    catch (chartError) {
+        console.error(`Error creating Chart.js instance for ${canvasId}:`, chartError);
+        statusEl.textContent = `Error rendering chart ${canvasId}`;
+        // ... display error on canvas ...
+    }
+}
+// --- END OF FILE dashboard.js (FOR DASHBOARD - With Diagnostics) ---
