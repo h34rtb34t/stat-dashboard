@@ -1,4 +1,4 @@
-/* --- START OF FILE dashboard.css --- */
+/* --- START OF FILE dashboard.css (Updated for Improvements) --- */
 
 /* --- Base Variables (Light Theme) --- */
 :root {
@@ -35,6 +35,9 @@
     --chart-color-7: rgba(201, 203, 207, 0.7);
     --chart-color-8: rgba(100, 100, 255, 0.7);
     --chart-color-9: rgba(255, 100, 100, 0.7);
+
+    /* Added: Spinner color */
+    --spinner-color: var(--primary-color);
 }
 
 /* --- Dark Theme Variables --- */
@@ -61,6 +64,9 @@ body.dark-theme {
     --button-text: var(--primary-text);
     --button-hover-bg: var(--primary-hover);
     --button-shadow: 0 2px 8px rgba(0,0,0,0.4);
+
+    /* Added: Spinner color for dark theme */
+    --spinner-color: var(--primary-color);
 
     /* Optionally adjust chart colors for dark mode if needed */
     /* Example:
@@ -143,8 +149,17 @@ a:hover {
     background-color: var(--card-bg);
     border-radius: 8px;
     box-shadow: var(--card-shadow);
-    text-align: center;
+    /* Keep text-align: center for main controls, but options can be aligned differently */
     transition: background-color 0.3s ease, box-shadow 0.3s ease; /* Updated */
+    position: relative; /* Needed if spinner uses absolute positioning */
+}
+/* Container for main input/button */
+.controls > label,
+.controls > input[type="password"],
+.controls > button {
+    display: inline-block; /* Allow them on the same line */
+    vertical-align: middle; /* Align vertically */
+    margin-bottom: 15px; /* Space below the main controls */
 }
 .controls label {
     margin-right: 8px;
@@ -185,13 +200,58 @@ a:hover {
     cursor: not-allowed;
     opacity: 0.7;
 }
+
+/* Status message and spinner container */
 #status {
-    margin-top: 15px;
+    margin-top: 0; /* Adjusted margin */
+    margin-bottom: 10px; /* Space below status/spinner */
     font-style: italic;
     color: var(--secondary-text);
     min-height: 1.2em; /* Prevent layout shift */
     transition: color 0.3s ease; /* Added */
+    text-align: center; /* Center status text */
+    display: inline-block; /* Allow spinner nearby */
+    vertical-align: middle;
+    margin-right: 10px; /* Space between status and spinner */
 }
+
+/* *** START: Loading Spinner Styles *** */
+.spinner {
+    display: inline-block; /* Display next to status */
+    vertical-align: middle;
+    width: 1.2em; /* Match status text size roughly */
+    height: 1.2em;
+    border: 3px solid color-mix(in srgb, var(--spinner-color) 30%, transparent); /* Lighter background circle */
+    border-radius: 50%;
+    border-top-color: var(--spinner-color); /* Actual spinner color */
+    animation: spin 1s ease-in-out infinite;
+    /* Ensure hidden by default via inline style 'display: none;' in HTML */
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+/* *** END: Loading Spinner Styles *** */
+
+
+/* *** START: Auto-Refresh Option Styles *** */
+.control-options {
+    margin-top: 15px; /* Space above options */
+    text-align: center; /* Center the checkbox/label */
+    font-size: 0.9rem;
+    color: var(--secondary-text);
+}
+.control-options label {
+    margin-left: 5px;
+    cursor: pointer;
+    font-weight: normal; /* Override general label weight */
+}
+.control-options input[type="checkbox"] {
+    cursor: pointer;
+    vertical-align: middle; /* Align checkbox with label text */
+}
+/* *** END: Auto-Refresh Option Styles *** */
+
 
 /* --- Summary Boxes --- */
 .summary-boxes {
@@ -207,9 +267,20 @@ a:hover {
     border-radius: 8px;
     box-shadow: var(--card-shadow);
     text-align: center;
-    min-width: 180px;
-    transition: background-color 0.3s ease, box-shadow 0.3s ease; /* Updated */
+    min-width: 180px; /* Adjust as needed for content */
+    flex-basis: 180px; /* Base width */
+    flex-grow: 1; /* Allow boxes to grow */
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease; /* Added transform */
 }
+.summary-box:hover {
+     transform: translateY(-3px); /* Subtle lift on hover */
+     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+     /* Dark theme hover shadow */
+     body.dark-theme & {
+         box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+     }
+}
+
 .summary-box h2 {
     font-size: 0.95rem;
     margin-bottom: 10px;
@@ -225,12 +296,14 @@ a:hover {
     display: block;
     line-height: 1.2;
     transition: color 0.3s ease; /* Added */
+    word-wrap: break-word; /* Allow long values (like referrer) to wrap */
+    hyphens: auto; /* Improve word breaking */
 }
 
 /* --- Charts --- */
 .charts-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); /* Slightly larger min */
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); /* Slightly smaller min */
     gap: 25px;
     margin-bottom: 40px;
 }
@@ -243,14 +316,18 @@ a:hover {
     display: flex; /* Use flexbox for better control */
     flex-direction: column; /* Stack title and canvas/map */
     transition: background-color 0.3s ease, box-shadow 0.3s ease; /* Updated */
+    position: relative; /* Context for potential absolute elements */
+    overflow: hidden; /* Ensure content stays within rounded corners */
 }
 .chart-box canvas {
     flex-grow: 1; /* Allow canvas to fill remaining space */
     max-height: 400px; /* Limit excessive height if needed */
+    width: 100% !important; /* Ensure canvas takes full width within flex container */
+    height: auto !important; /* Let Chart.js manage height based on aspect ratio */
 }
 
 
-/* --- START: Added styles for Location Map --- */
+/* --- Location Map & Marker Cluster --- */
 #locationMapContainer {
     /* This makes the map container span the full width of the grid */
     grid-column: 1 / -1;
@@ -275,6 +352,13 @@ a:hover {
 .leaflet-popup-content {
     font-size: 0.85rem;
     line-height: 1.5;
+    max-height: 150px; /* Limit popup height */
+    overflow-y: auto; /* Add scroll if content too long */
+    word-wrap: break-word; /* Wrap long lines */
+}
+.leaflet-popup-content b { /* Make bold tags slightly more prominent */
+    color: var(--primary-color);
+    font-weight: 600;
 }
 .leaflet-popup-tip {
     background-color: var(--card-bg);
@@ -285,7 +369,39 @@ a:hover {
 .leaflet-popup-close-button:hover {
     color: var(--text-color);
 }
-/* --- END: Added styles for Location Map --- */
+
+/* *** START: Marker Cluster Customization (Optional) *** */
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+	background-color: color-mix(in srgb, var(--primary-color) 70%, transparent); /* Use primary color with transparency */
+    border: 2px solid color-mix(in srgb, var(--primary-color) 90%, transparent); /* Slightly darker border */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.marker-cluster-small div,
+.marker-cluster-medium div,
+.marker-cluster-large div {
+	background-color: color-mix(in srgb, var(--primary-color) 90%, transparent); /* Inner circle color */
+	color: var(--primary-text); /* Text color inside cluster */
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3); /* Subtle text shadow */
+}
+/* Dark theme adjustments */
+body.dark-theme .marker-cluster-small,
+body.dark-theme .marker-cluster-medium,
+body.dark-theme .marker-cluster-large {
+    background-color: color-mix(in srgb, var(--primary-color) 60%, black 20%); /* Darker background for dark theme */
+    border: 2px solid color-mix(in srgb, var(--primary-color) 80%, black 10%);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+body.dark-theme .marker-cluster-small div,
+body.dark-theme .marker-cluster-medium div,
+body.dark-theme .marker-cluster-large div {
+	background-color: color-mix(in srgb, var(--primary-color) 80%, black 10%);
+    color: var(--primary-text); /* Keep text light */
+    text-shadow: none; /* Remove shadow on dark */
+}
+/* *** END: Marker Cluster Customization *** */
 
 
 /* --- Raw Events Section (Details/Summary & Table) --- */
@@ -308,13 +424,24 @@ a:hover {
     display: block; /* Ensure it takes full width */
     padding: 8px 0;
 }
+.raw-events-details summary.table-heading::before { /* Add custom arrow */
+    content: '▶ ';
+    display: inline-block;
+    font-size: 0.8em;
+    margin-right: 5px;
+    transition: transform 0.2s ease-in-out;
+}
+.raw-events-details[open] summary.table-heading::before {
+    transform: rotate(90deg);
+}
+
 
 body.dark-theme .raw-events-details summary.table-heading {
     color: #20c997; /* A slightly lighter green for dark backgrounds */
 }
 
 .raw-events-details summary.table-heading::-webkit-details-marker {
-    display: none;
+    display: none; /* Hide default marker */
 }
 .raw-events-details[open] summary.table-heading {
     margin-bottom: 0; /* Reduce margin when open */
@@ -329,7 +456,6 @@ body.dark-theme .raw-events-details summary.table-heading {
     padding: 20px 15px; /* Padding inside the filter area */
     margin-bottom: 15px; /* Space below filters, above table */
     border-bottom: 1px solid var(--border-color); /* Separator */
-    transition: border-color 0.3s ease;
     background-color: var(--card-bg); /* Give filters same bg as table wrapper */
     border-top-left-radius: 8px; /* Match wrapper if details isn't styled as card */
     border-top-right-radius: 8px;
@@ -376,6 +502,7 @@ body.dark-theme .raw-events-details summary.table-heading {
 input[type="search"]::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
+  /* Optional: Add custom clear button styling */
 }
 
 /* --- Table --- */
@@ -423,24 +550,28 @@ tbody tr:hover { /* Add hover effect */
 tbody tr:last-child td {
     border-bottom: none; /* Remove border from last row */
 }
-table th:nth-child(1) { width: 20%; } /* Timestamp */
+/* Adjust column widths as needed */
+table th:nth-child(1) { width: 18%; } /* Timestamp - slightly narrower */
 table th:nth-child(2) { width: 15%; } /* Type */
-table th:nth-child(3) { width: 25%; } /* Page */
-table th:nth-child(4) { width: 40%; } /* Details */
+table th:nth-child(3) { width: 22%; } /* Page - slightly narrower */
+table th:nth-child(4) { width: 45%; } /* Details - wider */
 
+/* Style the preformatted details */
 td pre {
     white-space: pre-wrap;
     word-break: break-all;
-    max-height: 150px;
+    max-height: 200px; /* Slightly taller */
     overflow-y: auto;
     font-size: 0.85em;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace; /* Monospace font */
     background-color: var(--pre-bg);
-    padding: 8px;
+    padding: 10px; /* Slightly more padding */
     border-radius: 4px;
     margin: 0;
     color: var(--text-color); /* Ensure pre text matches theme */
     border: 1px solid var(--border-color);
     transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease; /* Updated */
+    line-height: 1.4; /* Improve readability */
 }
 
 /* --- Scroll to Top Button --- */
@@ -462,21 +593,51 @@ td pre {
     box-shadow: var(--button-shadow);
     opacity: 0; /* Start fully transparent */
     visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.2s ease, box-shadow 0.3s ease; /* Updated */
+    transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.2s ease, box-shadow 0.3s ease, transform 0.2s ease; /* Added transform */
 }
 
 #scrollToTopBtn.show {
     display: block; /* Needs display to be visible */
     opacity: 0.8; /* Slightly transparent */
     visibility: visible;
+    transform: scale(1); /* Ensure it's full size */
 }
 
 #scrollToTopBtn:hover {
     background-color: var(--button-hover-bg);
     opacity: 1; /* Fully opaque on hover */
+    transform: scale(1.1); /* Slightly enlarge on hover */
 }
 
-/* --- Chart.js Theme Adjustments --- */
-/* Chart.js defaults are handled in JS now */
 
-/* --- END OF FILE dashboard.css --- */
+/* --- Responsive Adjustments (Example) --- */
+@media (max-width: 768px) {
+    body { padding: 15px; }
+    h1 { font-size: 1.5rem; }
+    .summary-boxes { gap: 15px; }
+    .summary-box { min-width: 150px; padding: 15px 20px; }
+    .summary-box .value { font-size: 1.8rem; }
+    .charts-container { grid-template-columns: 1fr; gap: 20px; } /* Stack charts */
+    .chart-box { min-height: 300px; }
+    #locationMap { height: 300px; } /* Reduce map height */
+    .raw-events-filters { gap: 10px; padding: 15px 10px; }
+    .filter-group { flex-basis: 100%; /* Stack filters vertically */ justify-content: space-between;}
+    .filter-group select, .filter-group input[type="search"] { width: calc(100% - 80px); /* Adjust width based on label */ min-width: 0; }
+    th, td { padding: 10px 12px; }
+    td pre { max-height: 150px; }
+    #scrollToTopBtn { bottom: 15px; right: 15px; padding: 8px 12px; font-size: 16px;}
+    .controls > label, .controls > input[type="password"] { display: block; text-align: left; margin-bottom: 5px; }
+    .controls > input[type="password"] { width: 100%; box-sizing: border-box; margin-right: 0; margin-bottom: 10px;}
+    .controls > button { width: 100%; }
+}
+
+@media (max-width: 480px) {
+     h1 { font-size: 1.3rem; }
+    .summary-box { flex-basis: 100%; } /* Stack summary boxes fully */
+    .controls { padding: 15px; }
+    th, td { font-size: 0.85rem; padding: 8px 10px; }
+    td pre { font-size: 0.8em; }
+}
+
+
+/* --- END OF FILE dashboard.css (Updated for Improvements) --- */
