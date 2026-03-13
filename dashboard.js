@@ -141,9 +141,13 @@ function initializeMap() {
         }
         const mapContainer = document.getElementById('locationMap');
         if (!mapContainer) { console.error("Map container element '#locationMap' not found."); return; }
-        mapInstance = L.map('locationMap').setView([20, 0], 2);
-        lightTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors' });
-        darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© <a href="https://osm.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>', subdomains: 'abcd', maxZoom: 19 });
+        mapInstance = L.map('locationMap', {
+            maxBounds: [[-90, -180], [90, 180]],
+            maxBoundsViscosity: 1.0,
+            worldCopyJump: false
+        }).setView([20, 0], 2);
+        lightTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { minZoom: 2, maxZoom: 18, noWrap: true, attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors' });
+        darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© <a href="https://osm.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>', subdomains: 'abcd', minZoom: 2, maxZoom: 19, noWrap: true });
         const initialThemeIsDark = document.body.classList.contains('dark-theme');
         if (initialThemeIsDark) { darkTileLayer.addTo(mapInstance); } else { lightTileLayer.addTo(mapInstance); }
         // Replace LayerGroup with MarkerClusterGroup
