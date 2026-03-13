@@ -42,6 +42,15 @@
              <input type="checkbox" id="autoRefreshCheckbox">
              <label for="autoRefreshCheckbox">Auto-refresh (5 min)</label>
         </div>
+        <div class="control-options" style="margin-left: 15px;">
+             <label for="timeRangeFilter" style="margin-right: 5px;">Time Range:</label>
+             <select id="timeRangeFilter">
+                 <option value="all">All Time</option>
+                 <option value="24">Last 24 Hours</option>
+                 <option value="7">Last 7 Days</option>
+                 <option value="30">Last 30 Days</option>
+             </select>
+        </div>
          <!-- *** END: Added Loading Spinner and Auto-Refresh *** -->
     </div>
 
@@ -50,6 +59,7 @@
          <div class="summary-box" id="totalViewsBox"><h2>Total Views</h2><span class="value">--</span></div>
          <div class="summary-box" id="uniqueDaysBox"><h2>Unique Days (Approx)</h2><span class="value">--</span></div>
          <!-- *** START: Added Summary Boxes *** -->
+         <div class="summary-box" id="topPageBox"><h2>Top Page</h2><span class="value">--</span></div>
          <div class="summary-box" id="topCountryBox"><h2>Top Country</h2><span class="value">--</span></div>
          <div class="summary-box" id="topReferrerBox"><h2>Top Referrer</h2><span class="value">--</span></div>
          <!-- *** END: Added Summary Boxes *** -->
@@ -91,6 +101,11 @@
          <div class="chart-box">
              <h2>Screen Width Distribution</h2>
              <canvas id="screenWidthChart"></canvas>
+         </div>
+         <!-- Device Type -->
+         <div class="chart-box">
+             <h2>Device Type (Estimated)</h2>
+             <canvas id="deviceTypeChart"></canvas>
          </div>
         <!-- Map Container -->
         <div class="chart-box" id="locationMapContainer">

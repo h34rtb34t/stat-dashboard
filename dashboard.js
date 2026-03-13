@@ -30,6 +30,7 @@ const filterKeywordInput = document.getElementById('filterKeyword');
 const filterLinkTypeSelect = document.getElementById('filterLinkType');
 const filterModalTypeSelect = document.getElementById('filterModalType');
 const filterProjectIdInput = document.getElementById('filterProjectId');
+const timeRangeFilterSelect = document.getElementById('timeRangeFilter');
 
 
 // --- Chart Instances ---
@@ -145,9 +146,9 @@ function initializeMap() {
         darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© <a href="https://osm.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>', subdomains: 'abcd', maxZoom: 19 });
         const initialThemeIsDark = document.body.classList.contains('dark-theme');
         if (initialThemeIsDark) { darkTileLayer.addTo(mapInstance); } else { lightTileLayer.addTo(mapInstance); }
-        // Replace LayerGroup with MarkerClusterGroup if needed:
-        // markerLayerGroup = L.markerClusterGroup();
-        markerLayerGroup = L.layerGroup(); // Keeping LayerGroup for now as per original code
+        // Replace LayerGroup with MarkerClusterGroup
+        markerLayerGroup = L.markerClusterGroup();
+        // markerLayerGroup = L.layerGroup(); // Keeping LayerGroup for now as per original code
         markerLayerGroup.addTo(mapInstance);
         console.log("Map initialized successfully.");
     } catch (error) { console.error("Error initializing map:", error); statusEl.textContent = "Error initializing map."; mapInstance = null; lightTileLayer = null; darkTileLayer = null; markerLayerGroup = null; }
@@ -209,17 +210,51 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial table message
     rawEventsTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--secondary-text);">Click \'Fetch Data\' to load events.</td></tr>';
 
+    // Debounce factory
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func(...args), wait);
+        };
+    }
+
+    // Time Filter Logic
+    window.applyTimeRangeFilter = function(events) {
+        if (!timeRangeFilterSelect) return events;
+        const timeRange = timeRangeFilterSelect.value;
+        if (timeRange === 'all') return events;
+        const hours = parseInt(timeRange, 10);
+        const cutoffDate = new Date();
+        cutoffDate.setHours(cutoffDate.getHours() - hours);
+        return events.filter(e => {
+            const evDate = getEventDate(e);
+            return evDate.getTime() >= cutoffDate.getTime();
+        });
+    };
+
+    window.updateGlobalDashboard = function() {
+        const timeFilteredEvents = window.applyTimeRangeFilter(currentRawEvents);
+        renderCharts(timeFilteredEvents);
+        calculateAndDisplaySummary(timeFilteredEvents);
+        renderLocationMap(timeFilteredEvents);
+        applyFiltersAndDisplayEvents();
+    };
+
     // Event Listeners
     fetchDataBtn.addEventListener('click', fetchData); // Ensure listener is attached
     secretTokenInput.addEventListener('keypress', function (e) { if (e.key === 'Enter') fetchData(); });
     themeToggleBtn.addEventListener('click', toggleTheme);
     window.addEventListener('scroll', handleScroll);
     scrollToTopBtn.addEventListener('click', goToTop);
+
+    timeRangeFilterSelect.addEventListener('change', window.updateGlobalDashboard);
+
     filterEventTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-    filterKeywordInput.addEventListener('input', applyFiltersAndDisplayEvents); // Consider debouncing this
+    filterKeywordInput.addEventListener('input', debounce(applyFiltersAndDisplayEvents, 300)); // Debounced
     filterLinkTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
     filterModalTypeSelect.addEventListener('change', applyFiltersAndDisplayEvents);
-    filterProjectIdInput.addEventListener('input', applyFiltersAndDisplayEvents); // Consider debouncing this
+    filterProjectIdInput.addEventListener('input', debounce(applyFiltersAndDisplayEvents, 300)); // Debounced
     handleScroll(); // Initial check for scroll button visibility
     console.log("DOM Content Loaded, event listeners attached."); // Log listener setup
 });
@@ -301,14 +336,15 @@ async function fetchData() {
         populateLinkTypeFilter(currentRawEvents); // Ensure this uses details.linkType
         populateModalTypeFilter(currentRawEvents); // Ensure this uses details.modalId
 
-        console.log("fetchData: Rendering charts...");
-        renderCharts(currentRawEvents); // Render charts with the new data
-        console.log("fetchData: Applying filters and displaying table...");
-        applyFiltersAndDisplayEvents(); // Apply current filter selections to the new data
-        console.log("fetchData: Calculating summary...");
-        calculateAndDisplaySummary(currentRawEvents); // Calculate summary from new data
-        console.log("fetchData: Rendering map...");
-        renderLocationMap(currentRawEvents); // Render map with new data
+        console.log("fetchData: Updating Global Dashboard...");
+        if (typeof window.updateGlobalDashboard === 'function') {
+            window.updateGlobalDashboard();
+        } else {
+            renderCharts(currentRawEvents);
+            applyFiltersAndDisplayEvents();
+            calculateAndDisplaySummary(currentRawEvents);
+            renderLocationMap(currentRawEvents);
+        }
 
         statusEl.textContent = `Displayed ${currentRawEvents.length} fetched events.`;
         console.log("fetchData: Processing complete.");
@@ -458,8 +494,11 @@ function applyFiltersAndDisplayEvents() {
     const selectedModalId = filterModalTypeSelect.value; // Based on details.modalId
     const projectIdKeyword = filterProjectIdInput.value.trim().toLowerCase();
 
+    // First apply the time range filter to narrow down events
+    const timeFilteredRaw = typeof window.applyTimeRangeFilter === 'function' ? window.applyTimeRangeFilter(currentRawEvents) : currentRawEvents;
+
     // Sort events by timestamp descending (most recent first)
-    const sortedEvents = [...currentRawEvents].sort((a, b) => {
+    const sortedEvents = [...timeFilteredRaw].sort((a, b) => {
         const dateA = getEventDate(a);
         const dateB = getEventDate(b);
         return dateB.getTime() - dateA.getTime(); // Descending order
@@ -616,6 +655,29 @@ function calculateAndDisplaySummary(events) {
     // Add Top Country & Top Referrer calculation if elements exist
     const topCountryEl = document.querySelector('#topCountryBox .value');
     const topReferrerEl = document.querySelector('#topReferrerBox .value');
+    const topPageEl = document.querySelector('#topPageBox .value');
+
+    if (topPageEl) {
+        const pages = events.filter(e => e.type === 'pageview' && e.page).reduce((acc, e) => {
+            let path = e.page;
+            try { 
+                const url = new URL(e.page);
+                path = url.pathname === '/' && url.hash ? url.hash : url.pathname + url.hash; 
+            } catch(err) {}
+            acc[path] = (acc[path] || 0) + 1;
+            return acc;
+        }, {});
+        const sortedPages = Object.entries(pages).sort(([, a], [, b]) => b - a);
+        if (sortedPages.length > 0) {
+            const topP = sortedPages[0][0];
+            const topCount = sortedPages[0][1];
+            topPageEl.textContent = topP.length > 20 ? `${topP.substring(0, 17)}... (${topCount})` : `${topP} (${topCount})`;
+            topPageEl.title = topP;
+        } else {
+            topPageEl.textContent = '--';
+            topPageEl.title = 'No page view data available';
+        }
+    }
 
      if (topCountryEl) {
          // Aggregate country counts from location data
@@ -960,6 +1022,32 @@ function renderCharts(events) {
              }
         } else {
             console.error("Canvas element #screenWidthChart not found.");
+        }
+
+        // 8. Device Types Distribution (New Chart)
+        console.log("Processing Chart 8: Device Types Distribution");
+        const deviceTypeCanvas = document.getElementById('deviceTypeChart');
+        if (deviceTypeCanvas) {
+            const deviceData = { Desktop: 0, Tablet: 0, Mobile: 0, Unknown: 0 };
+            events.forEach(e => {
+                if (e.screenWidth) {
+                    const width = parseInt(e.screenWidth, 10);
+                    if (width >= 1024) deviceData.Desktop++;
+                    else if (width >= 768) deviceData.Tablet++;
+                    else deviceData.Mobile++;
+                } else {
+                    deviceData.Unknown++;
+                }
+            });
+            if (deviceData.Desktop > 0 || deviceData.Tablet > 0 || deviceData.Mobile > 0) {
+                renderChart('deviceTypeChart', 'doughnut', {
+                    labels: ['Desktop (≥1024px)', 'Tablet (≥768px)', 'Mobile (<768px)'],
+                    datasets: [{ label: 'Device Types', data: [deviceData.Desktop, deviceData.Tablet, deviceData.Mobile], backgroundColor: colors.slice(3, 6), hoverOffset: 4 }]
+                }, { plugins: { legend: { position: 'bottom' } } });
+                console.log("Finished Chart 8");
+            } else {
+                handleEmptyChart('deviceTypeChart', 'No screen width data available to derive devices.');
+            }
         }
 
     } catch (renderChartsError) {
