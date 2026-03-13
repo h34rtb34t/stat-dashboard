@@ -1,7 +1,7 @@
 // --- START OF FILE dashboard.js ---
 
 // --- Configuration ---
-const RETRIEVAL_WORKER_URL = 'https://patient-mode-9cfb.azelbane87.workers.dev/'; // <-- YOUR URL IS HERE
+const RETRIEVAL_WORKER_URL = 'https://stats-ingress-worker.azelbane87.workers.dev/'; // <-- Updated to match live portfolio requests
 
 const CHART_COLORS_CSS = [
     'var(--chart-color-1)', 'var(--chart-color-2)', 'var(--chart-color-3)',
