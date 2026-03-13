@@ -172,7 +172,8 @@ function renderLocationMap(events) {
              const page = event.page || 'N/A';
              const type = event.type || 'N/A';
              const projectId = event.projectId || event.details?.projectId || event.details?.context || 'N/A'; // Extract project ID better
-             const timestamp = event.receivedAt ? new Date(event.receivedAt).toLocaleString() : 'N/A';
+             const evDate = getEventDate(event);
+             const timestamp = evDate.getTime() > 0 ? evDate.toLocaleString() : 'N/A';
              const city = event.location.city || '?';
              const region = event.location.regionCode || event.location.region || '?'; // Prefer region code
              const country = event.location.country || '?';
@@ -338,6 +339,45 @@ async function fetchData() {
 
 
 // --- Helper Functions ---
+function getEventDate(event) {
+    if (!event) return new Date(0);
+    const dateVal = event.receivedAt || event.timestamp;
+    if (!dateVal) return new Date(0);
+    
+    // Check if it's already a valid date string or number
+    let parsedDate = new Date(dateVal);
+    
+    // If invalid date (e.g. DD/MM/YYYY string from toLocaleString)
+    if (isNaN(parsedDate.getTime()) && typeof dateVal === 'string') {
+        // Try parsing DD/MM/YYYY, HH:MM:SS format
+        const parts = dateVal.split(/[\s,]+/);
+        if (parts.length >= 1) {
+            const dateParts = parts[0].split('/');
+            if (dateParts.length === 3) {
+                // Assuming DD/MM/YYYY
+                const day = parseInt(dateParts[0], 10);
+                const month = parseInt(dateParts[1], 10) - 1;
+                const year = parseInt(dateParts[2], 10);
+                
+                let hours = 0, minutes = 0, seconds = 0;
+                if (parts.length >= 2) {
+                    const timeParts = parts[1].split(':');
+                    if (timeParts.length >= 2) {
+                        hours = parseInt(timeParts[0], 10);
+                        minutes = parseInt(timeParts[1], 10);
+                        if (timeParts.length >= 3) seconds = parseInt(timeParts[2], 10);
+                    }
+                }
+                const fallbackDate = new Date(year, month, day, hours, minutes, seconds);
+                if (!isNaN(fallbackDate.getTime())) {
+                    return fallbackDate;
+                }
+            }
+        }
+    }
+    return isNaN(parsedDate.getTime()) ? new Date(0) : parsedDate;
+}
+
 function resetSummary() { totalViewsEl.textContent = '--'; uniqueDaysEl.textContent = '--'; }
 function destroyCharts() { Object.values(chartInstances).forEach(chart => { if (chart) chart.destroy(); }); chartInstances = {}; }
 // Helper to format labels (e.g., snake_case to Title Case)
@@ -420,9 +460,9 @@ function applyFiltersAndDisplayEvents() {
 
     // Sort events by timestamp descending (most recent first)
     const sortedEvents = [...currentRawEvents].sort((a, b) => {
-        const dateA = new Date(a.receivedAt || 0);
-        const dateB = new Date(b.receivedAt || 0);
-        return dateB - dateA; // Descending order
+        const dateA = getEventDate(a);
+        const dateB = getEventDate(b);
+        return dateB.getTime() - dateA.getTime(); // Descending order
     });
 
     let filteredEvents = sortedEvents.filter(event => {
@@ -450,7 +490,8 @@ function applyFiltersAndDisplayEvents() {
 
         // General Keyword Search
         if (keyword) {
-             const timestampStr = event.receivedAt ? new Date(event.receivedAt).toLocaleString().toLowerCase() : '';
+             const evDate = getEventDate(event);
+             const timestampStr = evDate.getTime() > 0 ? evDate.toLocaleString().toLowerCase() : '';
              const typeStr = (event.type || '').toLowerCase();
              const pageStr = (event.page || '').toLowerCase();
              // Include location data in search
@@ -487,7 +528,8 @@ function renderTableBody(events) {
     events.forEach(event => {
         const row = rawEventsTbody.insertRow();
 
-        row.insertCell().textContent = event.receivedAt ? new Date(event.receivedAt).toLocaleString() : 'N/A';
+        const evDate = getEventDate(event);
+        row.insertCell().textContent = evDate.getTime() > 0 ? evDate.toLocaleString() : 'N/A';
         row.insertCell().textContent = formatLabel(event.type || 'N/A'); // Format type nicely
 
         // Add title attribute for full URL on hover
@@ -564,9 +606,9 @@ function calculateAndDisplaySummary(events) {
     // Calculate unique days based on pageviews only
     const uniqueDays = new Set(pageViews.map(e => {
         try {
-            const dateStr = e.receivedAt || e.timestamp; // Prefer receivedAt
-            if (!dateStr) return null;
-            return new Date(dateStr).toLocaleDateString(); // Get YYYY-MM-DD or similar
+            const evDate = getEventDate(e);
+            if (evDate.getTime() === 0) return null;
+            return evDate.toLocaleDateString(); // Get YYYY-MM-DD or similar
         } catch (err) { return null; }
     }).filter(d => d !== null)); // Filter out invalid dates
     uniqueDaysEl.textContent = uniqueDays.size;
@@ -691,7 +733,9 @@ function renderCharts(events) {
             .filter(e => e.type === 'pageview' && (e.receivedAt || e.timestamp)) // Ensure timestamp exists
             .reduce((acc, event) => {
                 try {
-                    const date = new Date(event.receivedAt || event.timestamp).toISOString().split('T')[0];
+                    const evDate = getEventDate(event);
+                    if (evDate.getTime() === 0) throw new Error("Invalid date");
+                    const date = evDate.toISOString().split('T')[0];
                     acc[date] = (acc[date] || 0) + 1;
                 } catch(e) { console.warn("Error parsing date for pageview:", event.receivedAt || event.timestamp, e); } // Log date parsing errors
                 return acc;
