@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Portfolio analytics dashboard for tracking visitor statistics, page views, interactions, and geographic data.">
+    <title>Portfolio Stats Dashboard</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+
+    <!-- Leaflet.markercluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+
+    <!-- Dashboard CSS -->
+    <link rel="stylesheet" href="dashboard.css">
+
+    <!-- Include Chart.js and date adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+     <header class="app-header">
+        <h1>Portfolio Statistics</h1>
+        <button id="themeToggleBtn" title="Toggle Theme (T)">🌙</button>
+    </header>
+
+    <!-- Controls -->
+    <div class="controls">
+        <label for="secretToken">Auth Token:</label>
+        <input type="password" id="secretToken" placeholder="Enter your secret token">
+        <button id="fetchDataBtn">Fetch Data</button>
+        <div id="loadingSpinner" class="spinner hidden-el"></div>
+        <p id="status"></p>
+        <div class="control-options">
+             <input type="checkbox" id="autoRefreshCheckbox">
+             <label for="autoRefreshCheckbox">Auto-refresh (5 min)</label>
+        </div>
+        <div class="control-options control-options-gap">
+             <label for="timeRangeFilter" class="label-mr">Time Range:</label>
+             <select id="timeRangeFilter">
+                 <option value="all">All Time</option>
+                 <option value="24">Last 24 Hours</option>
+                 <option value="7">Last 7 Days</option>
+                 <option value="30">Last 30 Days</option>
+             </select>
+        </div>
+        <p id="lastUpdated" class="last-updated-text"></p>
+    </div>
+
+    <!-- Summary Boxes -->
+    <div class="summary-boxes">
+         <div class="summary-box" id="totalViewsBox"><h2>Total Views</h2><span class="value">--</span></div>
+         <div class="summary-box" id="uniqueVisitorsBox"><h2>Unique Visitors</h2><span class="value">--</span></div>
+         <div class="summary-box" id="uniqueDaysBox"><h2>Unique Days</h2><span class="value">--</span></div>
+         <div class="summary-box" id="bounceRateBox"><h2>Bounce Rate</h2><span class="value">--</span></div>
+         <div class="summary-box" id="avgSessionBox"><h2>Avg. Session</h2><span class="value">--</span></div>
+         <div class="summary-box" id="topPageBox"><h2>Top Page</h2><span class="value">--</span></div>
+         <div class="summary-box" id="topCountryBox"><h2>Top Country</h2><span class="value">--</span></div>
+         <div class="summary-box" id="topReferrerBox"><h2>Top Referrer</h2><span class="value">--</span></div>
+    </div>
+
+    <!-- Charts Container -->
+    <div class="charts-container">
+        <div class="chart-box">
+            <h2>Page Views Over Time</h2>
+            <div class="skeleton-chart"></div>
+            <canvas id="pageViewsChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <h2>Hourly Activity</h2>
+            <div class="skeleton-chart"></div>
+            <canvas id="hourlyActivityChart"></canvas>
+        </div>
+        <div class="chart-box">
+             <h2>Top Project Interactions</h2>
+             <div class="skeleton-chart"></div>
+             <canvas id="projectInteractionsChart"></canvas>
+        </div>
+         <div class="chart-box">
+             <h2>Link Click Destinations</h2>
+             <div class="skeleton-chart"></div>
+             <canvas id="linkTypesChart"></canvas>
+         </div>
+         <div class="chart-box">
+             <h2>Interaction Click Types</h2>
+             <div class="skeleton-chart"></div>
+             <canvas id="clickTypesChart"></canvas>
+         </div>
+         <div class="chart-box">
+             <h2>Modal Opens</h2>
+             <div class="skeleton-chart"></div>
+             <canvas id="modalOpensChart"></canvas>
+         </div>
+         <div class="chart-box">
+             <h2>Event Types Distribution</h2>
+             <div class="skeleton-chart"></div>
+             <canvas id="eventTypesChart"></canvas>
+         </div>
+         <div class="chart-box">
+             <h2>Screen Width Distribution</h2>
+             <div class="skeleton-chart"></div>
+             <canvas id="screenWidthChart"></canvas>
+         </div>
+         <div class="chart-box">
+             <h2>Device Type (Estimated)</h2>
+             <div class="skeleton-chart"></div>
+             <canvas id="deviceTypeChart"></canvas>
+         </div>
+        <div class="chart-box" id="locationMapContainer">
+            <h2 class="map-heading">Recent Visitor Locations
+                <button id="mapLayerToggle" class="map-layer-toggle" title="Toggle Heatmap view">🔥 Heatmap</button>
+            </h2>
+            <div id="locationMap"></div>
+        </div>
+    </div>
+
+    <!-- Raw Events Table Section -->
+    <details class="raw-events-details">
+        <summary class="table-heading">
+            Recent Raw Events (Latest 500)
+        </summary>
+        <!-- Filters -->
+        <div class="raw-events-filters">
+             <div class="filter-group">
+                 <label for="filterEventType">Filter by Type:</label>
+                 <select id="filterEventType">
+                     <option value="">All Types</option>
+                 </select>
+             </div>
+             <div class="filter-group">
+                 <label for="filterKeyword">Search:</label>
+                 <input type="search" id="filterKeyword" placeholder="General keyword...">
+             </div>
+              <div class="filter-group">
+                 <label for="filterLinkType">Link Dest. Type:</label>
+                 <select id="filterLinkType">
+                     <option value="">All Link Dest. Types</option>
+                     <option value="internal">Internal</option>
+                     <option value="external">External</option>
+                     <option value="anchor">Anchor</option>
+                     <option value="nohref">No Href</option>
+                 </select>
+             </div>
+              <div class="filter-group">
+                 <label for="filterModalType">Modal ID/Type:</label>
+                 <select id="filterModalType">
+                     <option value="">All Modal IDs/Types</option>
+                 </select>
+             </div>
+             <div class="filter-group">
+                 <label for="filterProjectId">Project ID/Context:</label>
+                 <input type="search" id="filterProjectId" placeholder="Project keyword...">
+             </div>
+             <div class="filter-group">
+                 <button id="exportCsvBtn" class="export-csv-btn" title="Export filtered events as CSV">📥 Export CSV</button>
+             </div>
+        </div>
+        <!-- Pagination -->
+        <div id="tablePagination" class="table-pagination">
+            <button id="prevPageBtn" class="pagination-btn" disabled>← Previous</button>
+            <span id="pageInfo" class="page-info">Page 1</span>
+            <button id="nextPageBtn" class="pagination-btn">Next →</button>
+        </div>
+        <!-- Table Wrapper & Table -->
+        <div class="table-wrapper">
+            <table id="rawEventsTable">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Type</th>
+                        <th>Page</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4" class="table-initial-msg">Click 'Fetch Data' to load events.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scroll to Top Button -->
+    <button id="scrollToTopBtn" title="Go to top">↑</button>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+    <!-- Leaflet.markercluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+    <!-- Leaflet.heat JS -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <!-- Dashboard Script -->
+    <script src="dashboard.js"></script>
+</body>
+</html>
