@@ -273,25 +273,64 @@ function renderLocationMap(events) {
 
 function toggleHeatmap() {
     showHeatmap = !showHeatmap;
-    if (!mapLayerToggle) return;
+    if (!mapLayerToggle || !mapInstance) return;
     if (showHeatmap) {
         mapLayerToggle.textContent = '📍 Markers';
-        if (mapInstance && markerLayerGroup && mapInstance.hasLayer(markerLayerGroup)) mapInstance.removeLayer(markerLayerGroup);
+        mapLayerToggle.title = 'Switch to marker view';
+        // Hide marker clusters
+        if (markerLayerGroup && mapInstance.hasLayer(markerLayerGroup)) mapInstance.removeLayer(markerLayerGroup);
+        // Remove old heat layer
+        if (heatLayer && mapInstance.hasLayer(heatLayer)) mapInstance.removeLayer(heatLayer);
+        heatLayer = null;
+
         const timeFiltered = typeof window.applyTimeRangeFilter === 'function' ? window.applyTimeRangeFilter(currentRawEvents) : currentRawEvents;
-        const heatData = [];
+        const heatPoints = [];
         timeFiltered.forEach(e => {
             const lat = parseFloat(e.location?.latitude), lon = parseFloat(e.location?.longitude);
-            if (!isNaN(lat) && !isNaN(lon) && !(lat===0 && lon===0)) heatData.push([lat, lon, 1]);
+            if (!isNaN(lat) && !isNaN(lon) && !(lat === 0 && lon === 0)) heatPoints.push([lat, lon]);
         });
-        if (heatLayer && mapInstance) mapInstance.removeLayer(heatLayer);
-        if (typeof L !== 'undefined' && typeof L.heatLayer === 'function' && mapInstance) {
-            heatLayer = L.heatLayer(heatData, { radius: 40, blur: 20, maxZoom: 18, minOpacity: 0.4, max: 1.0 });
+
+        console.log(`Heatmap toggle: ${heatPoints.length} points, L.heatLayer available: ${typeof L.heatLayer === 'function'}`);
+
+        if (typeof L.heatLayer === 'function') {
+            // Use leaflet.heat plugin
+            const heatData = heatPoints.map(p => [p[0], p[1], 1]);
+            heatLayer = L.heatLayer(heatData, { radius: 40, blur: 20, maxZoom: 18, minOpacity: 0.4, max: 1.0, gradient: {0.2: 'blue', 0.4: 'lime', 0.6: 'yellow', 0.8: 'orange', 1.0: 'red'} });
+            heatLayer.addTo(mapInstance);
+        } else {
+            // Fallback: use colored circle markers to simulate heat
+            console.warn('leaflet.heat plugin not available, using circle marker fallback');
+            // Count occurrences at each location
+            const locCounts = {};
+            heatPoints.forEach(([lat, lon]) => {
+                const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+                locCounts[key] = (locCounts[key] || { lat, lon, count: 0 });
+                locCounts[key].count++;
+            });
+            const maxCount = Math.max(1, ...Object.values(locCounts).map(l => l.count));
+            heatLayer = L.layerGroup();
+            Object.values(locCounts).forEach(loc => {
+                const intensity = loc.count / maxCount;
+                const color = intensity > 0.7 ? '#ff0000' : intensity > 0.4 ? '#ff8800' : intensity > 0.2 ? '#ffcc00' : '#00cc00';
+                const radius = 15000 + (intensity * 40000); // meters - visible at world zoom
+                L.circle([loc.lat, loc.lon], {
+                    radius: radius,
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.35 + (intensity * 0.35),
+                    weight: 1,
+                    opacity: 0.6
+                }).bindPopup(`<b>${loc.count} events</b><br>Lat: ${loc.lat.toFixed(2)}, Lon: ${loc.lon.toFixed(2)}`).addTo(heatLayer);
+            });
             heatLayer.addTo(mapInstance);
         }
+        showToast(`Heatmap: ${heatPoints.length} data points`, 'info');
     } else {
         mapLayerToggle.textContent = '🔥 Heatmap';
-        if (heatLayer && mapInstance && mapInstance.hasLayer(heatLayer)) mapInstance.removeLayer(heatLayer);
-        if (markerLayerGroup && mapInstance && !mapInstance.hasLayer(markerLayerGroup)) markerLayerGroup.addTo(mapInstance);
+        mapLayerToggle.title = 'Switch to heatmap view';
+        if (heatLayer && mapInstance.hasLayer(heatLayer)) mapInstance.removeLayer(heatLayer);
+        heatLayer = null;
+        if (markerLayerGroup && !mapInstance.hasLayer(markerLayerGroup)) markerLayerGroup.addTo(mapInstance);
     }
 }
 
