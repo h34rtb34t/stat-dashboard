@@ -264,7 +264,7 @@ function renderLocationMap(events) {
         }
     });
     if (showHeatmap && typeof L.heatLayer === 'function') {
-        heatLayer = L.heatLayer(heatData, { radius:25, blur:15, maxZoom:10 });
+        heatLayer = L.heatLayer(heatData, { radius: 40, blur: 20, maxZoom: 18, minOpacity: 0.4, max: 1.0 });
         heatLayer.addTo(mapInstance);
         if (mapInstance.hasLayer(markerLayerGroup)) mapInstance.removeLayer(markerLayerGroup);
     }
@@ -285,7 +285,7 @@ function toggleHeatmap() {
         });
         if (heatLayer && mapInstance) mapInstance.removeLayer(heatLayer);
         if (typeof L !== 'undefined' && typeof L.heatLayer === 'function' && mapInstance) {
-            heatLayer = L.heatLayer(heatData, { radius:25, blur:15, maxZoom:10 });
+            heatLayer = L.heatLayer(heatData, { radius: 40, blur: 20, maxZoom: 18, minOpacity: 0.4, max: 1.0 });
             heatLayer.addTo(mapInstance);
         }
     } else {
